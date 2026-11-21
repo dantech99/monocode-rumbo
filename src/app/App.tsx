@@ -810,6 +810,7 @@ import {
 import {
   mergeHistorySummary,
   mergeProjectHistorySummary,
+  projectHistoryLoadPaths,
   replaceProjectHistory,
   historyWithLiveSessions,
   sameSessionSummaries,
@@ -1547,6 +1548,9 @@ function Workspace({
   loadedProjectsRef.current = loadedProjects;
   /** Project whose listing failed, so the error cannot leak to another one. */
   const [historyErrorCwd, setHistoryErrorCwd] = useState<string | null>(null);
+  const [historyErrorPaths, setHistoryErrorPaths] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const linkedSessionUpdatesRef = useRef<
     ReadonlyMap<string, LinkedSessionUpdate>
@@ -2547,32 +2551,36 @@ function Workspace({
 
   const refreshHistory = useCallback(async (cwd: string) => {
     if (!cwd || cwd === "~") return;
-    // `history` holds every visited project's rows and the sidebar filters it
-    // by cwd, so a project loaded once paints from cache on the way back and
-    // revalidates quietly underneath the cards already on screen. Whether the
-    // first load is still pending is derived from `loadedProjects`, not
-    // tracked here — a status set from this effect lands a render too late to
-    // suppress the empty state.
     const key = normalizeProjectPath(cwd);
-    setHistoryErrorCwd((prev) => (prev === key ? null : prev));
+    setHistoryErrorPaths((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
     try {
       const rows = await listSessionsByProject(cwd);
-      if (cwd !== sidebarCwdRef.current) return;
       setHistory((current) => replaceProjectHistory(current, cwd, rows));
       setLoadedProjects((prev) =>
         prev.has(key) ? prev : new Set(prev).add(key),
       );
+      if (sameProjectPath(cwd, sidebarCwdRef.current)) setHistoryErrorCwd(null);
     } catch {
-      if (cwd !== sidebarCwdRef.current) return;
-      // A failed revalidate keeps the cached cards rather than replacing a
-      // good list with an error.
-      if (!loadedProjectsRef.current.has(key)) setHistoryErrorCwd(key);
+      if (loadedProjectsRef.current.has(key)) return;
+      setHistoryErrorPaths((prev) =>
+        prev.has(key) ? prev : new Set(prev).add(key),
+      );
+      if (sameProjectPath(cwd, sidebarCwdRef.current)) setHistoryErrorCwd(key);
     }
   }, []);
 
   useEffect(() => {
-    void refreshHistory(sidebarCwd);
-  }, [sidebarCwd, refreshHistory]);
+    const paths = projectHistoryLoadPaths(
+      projectRailItems(recents, sidebarCwd),
+      sidebarCwd,
+    );
+    for (const path of paths) void refreshHistory(path);
+  }, [recents, sidebarCwd, refreshHistory]);
 
   useEffect(() => {
     if (!inboxViewOpen) return;
@@ -12005,31 +12013,38 @@ function Workspace({
     [history, sidebarCwd],
   );
 
-  const sidebarHistoryRows = useMemo(
-    () =>
+  const sidebarHistoryRows = useMemo(() => {
+    const projects = projectHistoryLoadPaths(
+      projectRailItems(recents, sidebarCwd),
+      sidebarCwd,
+    );
+    return projects.flatMap((path) =>
       historyWithLiveSessions(
         history,
         // A habit's hidden run is never one of the project's chats.
         promptableSessions,
-        sidebarCwd,
-        {
-          ...(projectBranches?.current
-            ? { branch: projectBranches.current }
-            : {}),
-          ...(sidebarCwd && sidebarCwd !== "~"
-            ? { repo: projectName(sidebarCwd) }
-            : {}),
-        },
+        path,
+        sameProjectPath(path, sidebarCwd)
+          ? {
+              ...(projectBranches?.current
+                ? { branch: projectBranches.current }
+                : {}),
+              ...(path && path !== "~" ? { repo: projectName(path) } : {}),
+            }
+          : path && path !== "~"
+            ? { repo: projectName(path) }
+            : undefined,
         orchestrationRuns,
       ),
-    [
-      history,
-      projectBranches,
-      promptableSessions,
-      sidebarCwd,
-      orchestrationRuns,
-    ],
-  );
+    );
+  }, [
+    history,
+    orchestrationRuns,
+    projectBranches,
+    promptableSessions,
+    recents,
+    sidebarCwd,
+  ]);
   const sidebarHistory = useStableValue(
     sidebarHistoryRows,
     sameSessionSummaries,
@@ -14041,6 +14056,8 @@ function Workspace({
       activeSessionId={activeSessionId}
       status={historyFailed ? "error" : "idle"}
       pending={historyPending}
+      failedProjectPaths={historyErrorPaths}
+      loadedProjectPaths={loadedProjects}
       onSelectSession={onSelectHistorySession}
       onSelectRemoteSession={onSelectRemoteSession}
       onRemoteSessionDeleted={onRemoteSessionDeleted}

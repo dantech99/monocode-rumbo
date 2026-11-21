@@ -310,6 +310,10 @@ type Props = {
   status: "idle" | "error";
   /** First listing for this project has not arrived yet. */
   pending: boolean;
+  /** Projects whose session listing failed. */
+  failedProjectPaths?: ReadonlySet<string>;
+  /** Projects whose session rows are already cached. */
+  loadedProjectPaths?: ReadonlySet<string>;
   onSelectSession: (sessionId: string) => void;
   onSelectRemoteSession?: (project: string, sessionId: string) => void;
   onRemoteSessionDeleted?: (sessionId: string) => void;

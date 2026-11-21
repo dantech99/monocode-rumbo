@@ -3,7 +3,10 @@ import { summarizeOrchestration } from "../../orchestration/model/orchestrationS
 import { fuzzyMatch } from "../../../shared/lib/fuzzy";
 import { projectName } from "../../../shared/lib/paths";
 import { plainEqual } from "../../../shared/hooks/useStableValue";
-import { sameProjectPath } from "../../projects/model/recents";
+import {
+  isRemoteProjectPath,
+  sameProjectPath,
+} from "../../projects/model/recents";
 import {
   sessionDisplayTitle,
   sessionDraftBlock,
@@ -248,4 +251,18 @@ export function historyWithLiveSessions(
         : row;
     })
     .sort(compareSessionSummaries);
+}
+
+export function projectHistoryLoadPaths(
+  projects: readonly { path: string }[],
+  active: string,
+): string[] {
+  const local = projects
+    .map((project) => project.path)
+    .filter(
+      (path) => Boolean(path) && path !== "~" && !isRemoteProjectPath(path),
+    );
+  const current = local.filter((path) => sameProjectPath(path, active));
+  const rest = local.filter((path) => !sameProjectPath(path, active));
+  return [...current, ...rest];
 }
