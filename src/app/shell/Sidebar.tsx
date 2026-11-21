@@ -328,6 +328,11 @@ type Props = {
   failedProjectPaths?: ReadonlySet<string>;
   /** Projects whose session rows are already cached. */
   loadedProjectPaths?: ReadonlySet<string>;
+  /**
+   * Live branch of the open project. Other projects use the latest session
+   * summary. Omit when detached or unknown.
+   */
+  currentBranch?: string;
   onSelectSession: (sessionId: string) => void;
   onSelectRemoteSession?: (project: string, sessionId: string) => void;
   onRemoteSessionDeleted?: (sessionId: string) => void;
@@ -453,6 +458,7 @@ function SidebarComponent({
   pending,
   failedProjectPaths = EMPTY_PROJECT_PATHS,
   loadedProjectPaths = EMPTY_PROJECT_PATHS,
+  currentBranch,
   onSelectSession: onSelectLocalSession,
   onSelectRemoteSession,
   onRemoteSessionDeleted,
@@ -1048,10 +1054,12 @@ function SidebarComponent({
   // The inset sidebar holds the links to search, inbox, notes and
   // automations, and lets new users open their first project and Settings.
   // It stays available without a project; only settings take its place.
-  // The classic sidebar only has project-scoped tools and sessions.
+  // The classic action strip stays mounted while Search, Inbox, Notes,
+  // Automations, or Settings covers the workspace, so the active control
+  // can toggle back. Mono still has no project sidebar.
   const sidebarAvailable = inset
     ? !settingsOpen
-    : !otherViewActive && !monoViewActive && inProject;
+    : !monoViewActive && inProject;
   const sidebarVisible = open && sidebarAvailable;
   // With the sidebar collapsed beside the compact rail, its tab shortcuts
   // open the sidebar temporarily until the user clicks away.
@@ -2178,8 +2186,8 @@ function SidebarComponent({
   } | null>(null);
   const insetInboxTrigger = useRef<HTMLElement | null>(null);
   useEffect(() => {
-    if (!inset || !panelOpen || !sidebarAvailable) setInsetInboxMenu(null);
-  }, [inset, panelOpen, sidebarAvailable]);
+    if (!panelOpen || !sidebarAvailable) setInsetInboxMenu(null);
+  }, [panelOpen, sidebarAvailable]);
   const headerProjectMenu = useProjectMenu({
     onRemoveProject,
     onOpenNotificationSettings,
@@ -2647,6 +2655,7 @@ function SidebarComponent({
     pendingPaths,
     failedPaths: failedProjectPaths,
     remoteDisconnectedPaths,
+    currentBranch,
   }).map((group) => {
     const key = projectKey(group.cwd);
     const seed = projectName(group.cwd);
@@ -2715,25 +2724,18 @@ function SidebarComponent({
           )}
           {compactRailVisible ? workspaceHeader : null}
           {onSelectProject && !compactRailVisible ? (
-            <SidebarProjectPicker
-              cwd={cwd}
-              recents={recents}
-              busy={projectPathBusy(busyProjectPaths, cwd)}
-              onSelectProject={onSelectProject}
-              onOpenProject={onOpenProject}
-              onRemoveProject={onRemoveProject}
-              onNew={onNew}
-              onSearch={onSearch}
-              onOpenInbox={onOpenInbox}
-              onOpenNotificationSettings={onOpenNotificationSettings}
-              onOpenNotes={notesEnabled ? onOpenNotes : undefined}
-              onOpenAutomations={onOpenAutomations}
-              searchActive={searchActive}
-              inboxActive={inboxActive}
-              notesActive={notesActive}
-              automationsActive={automationsActive}
-              inboxUnseen={inboxUnseen}
-            />
+            <div className="flex h-9 min-w-0 items-center border-b border-stroke px-2">
+              <SearchableProjectPickerWithMenu
+                cwd={cwd}
+                recents={recents}
+                busy={projectPathBusy(busyProjectPaths, cwd)}
+                className="min-w-0 flex-1"
+                onSelectProject={onSelectProject}
+                onOpenProject={onOpenProject}
+                onRemoveProject={onRemoveProject}
+                onOpenNotificationSettings={onOpenNotificationSettings}
+              />
+            </div>
           ) : null}
           {!compactRailVisible ? (
             <div
@@ -2775,6 +2777,14 @@ function SidebarComponent({
             onOpenInbox={
               inboxActive && onGoBack ? onGoBack : (onOpenInbox ?? (() => {}))
             }
+            onOpenInboxMenu={(x, y) => {
+              headerProjectMenu.close();
+              insetInboxTrigger.current =
+                document.activeElement instanceof HTMLElement
+                  ? document.activeElement
+                  : null;
+              setInsetInboxMenu({ x, y });
+            }}
             onOpenNotes={
               notesEnabled
                 ? notesActive && onGoBack
@@ -2788,8 +2798,14 @@ function SidebarComponent({
                 : (onOpenAutomations ?? (() => {}))
             }
             onOpenProject={onOpenProject ?? (() => {})}
-            onOpenSettings={onOpenSettings ?? (() => {})}
+            onOpenSettings={
+              settingsOpen && onGoBack
+                ? onGoBack
+                : (onOpenSettings ?? (() => {}))
+            }
             onSelectProject={onSelectProject ?? (() => {})}
+            sessionFilter={sessionsFilterButton}
+            settingsActive={settingsOpen}
             showList={showSessionList}
             renderSession={(session) => renderSessionRow(session)}
           />
@@ -2810,16 +2826,6 @@ function SidebarComponent({
             />
             <div className="flex shrink-0 flex-col gap-px p-2 empty:hidden">
               <GithubStarPrompt />
-              {/* Without a project, the inset header has no Settings menu. */}
-              {(inset ? !inProject : !compactProjectRail) ? (
-                <RailAction
-                  label="Settings"
-                  icon={Settings}
-                  onClick={onOpenSettings}
-                  shortcut={`${MOD},`}
-                  ariaLabel={`Settings (${MOD},)`}
-                />
-              ) : null}
             </div>
           </>
         ) : null}

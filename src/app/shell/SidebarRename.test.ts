@@ -447,6 +447,76 @@ describe("spaces column", () => {
   });
 });
 
+describe("classic spaces strip", () => {
+  it("keeps the spaces strip mounted while search covers the classic layout", async () => {
+    props = {
+      ...props,
+      inset: false,
+      projectRailOpen: true,
+      searchActive: true,
+      onSearch: vi.fn(),
+      onGoBack: vi.fn(),
+    };
+    await act(async () => render());
+    expect(
+      container.querySelector('button[aria-label="Search"]'),
+    ).not.toBeNull();
+  });
+
+  it("offers Filter sessions on the classic sidebar", () => {
+    act(() => render());
+    expect(
+      container.querySelector('button[aria-label="Filter sessions"]'),
+    ).not.toBeNull();
+  });
+
+  it("uses one search control and one settings control when the rail is collapsed", async () => {
+    props = {
+      ...props,
+      inset: false,
+      projectRailOpen: false,
+      compactProjectRail: false,
+      onSelectProject: vi.fn(),
+      onOpenProject: vi.fn(),
+      onSearch: vi.fn(),
+      onOpenSettings: vi.fn(),
+    };
+    await act(async () => render());
+    expect(
+      container.querySelectorAll('button[aria-label^="Search"]'),
+    ).toHaveLength(1);
+    expect(
+      container.querySelectorAll('button[aria-label^="Settings"]'),
+    ).toHaveLength(1);
+  });
+
+  it("shows the open project's live branch ahead of the newest session", async () => {
+    props = {
+      ...props,
+      cwd: "/repo/a",
+      currentBranch: "live-main",
+      recents: [{ path: "/repo/a", openedAt: 2 }],
+      sessions: [
+        {
+          ...props.sessions[0],
+          id: "from-a",
+          cwd: "/repo/a",
+          title: "from-a",
+          branch: "session-branch",
+          updatedAt: Date.now(),
+        },
+      ],
+      onSelectProject: vi.fn(),
+      onOpenProject: vi.fn(),
+    };
+    await act(async () => render());
+    expect(
+      container.querySelector('[data-project="/repo/a"] [data-project-branch]')
+        ?.textContent,
+    ).toBe("live-main");
+  });
+});
+
 describe("worktree explorer visibility", () => {
   it("does not mount the file tree while browsing chat tabs", () => {
     props = { ...props, gitCwd: "/worktrees/first" };

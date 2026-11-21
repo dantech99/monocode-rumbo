@@ -13869,6 +13869,12 @@ function Workspace({
     automationsViewOpen;
   const compactProjectRail = collapsedProjectRailMode === "compact";
   const compactRailActive = compactProjectRail && !projectRailOpen;
+  // Overlay back stays only while the spaces strip is not on screen.
+  const spacesStripVisible =
+    !insetLayout &&
+    sessionSidebarOpen &&
+    !monoCovers &&
+    looksLikeProject(sidebarCwd);
   const compactTitleNavigation =
     IS_MAC && compactRailActive && !chromeSurfaceOpen;
   const compactTitleBar = compactTitleNavigation && !monoCovers;
@@ -14088,6 +14094,11 @@ function Workspace({
       pending={historyPending}
       failedProjectPaths={historyErrorPaths}
       loadedProjectPaths={loadedProjects}
+      currentBranch={
+        projectBranches?.current && !projectBranches.detached
+          ? projectBranches.current
+          : undefined
+      }
       onSelectSession={onSelectHistorySession}
       onSelectRemoteSession={onSelectRemoteSession}
       onRemoteSessionDeleted={onRemoteSessionDeleted}
@@ -14572,9 +14583,7 @@ function Workspace({
                         history={projectHistory}
                         sessions={sessions.filter((session) => !session.inboxAsk)}
                         focusToken={searchViewFocusToken}
-                        besideRail={
-                          insetLayout || projectRailOpen || compactProjectRail
-                        }
+                        besideRail={insetLayout || spacesStripVisible}
                         compactRail={!insetLayout && compactRailActive}
                         onClose={onLeaveSearch}
                         onToggleSidebar={onToggleSidebar}
@@ -14622,9 +14631,7 @@ function Workspace({
                         cwd={sidebarCwd}
                         scopeProject={appViewScope}
                         recents={recents}
-                        besideRail={
-                          insetLayout || projectRailOpen || compactProjectRail
-                        }
+                        besideRail={insetLayout || spacesStripVisible}
                         compactRail={!insetLayout && compactRailActive}
                         onClose={onLeaveInbox}
                         onToggleSidebar={onToggleSidebar}
@@ -14646,9 +14653,7 @@ function Workspace({
                       <NotesView
                         tabbed={insetLayout}
                         active={notesViewOpen}
-                        besideRail={
-                          insetLayout || projectRailOpen || compactProjectRail
-                        }
+                        besideRail={insetLayout || spacesStripVisible}
                         compactRail={!insetLayout && compactRailActive}
                         cwd={projectCwd}
                         scopeProject={appViewScope}
@@ -14663,9 +14668,7 @@ function Workspace({
                     <AppViewSurface active={automationsViewOpen}>
                       <AutomationsView
                         tabbed={insetLayout}
-                        besideRail={
-                          insetLayout || projectRailOpen || compactProjectRail
-                        }
+                        besideRail={insetLayout || spacesStripVisible}
                         compactRail={!insetLayout && compactRailActive}
                         cwd={projectCwd}
                         scopeProject={appViewScope}

@@ -33,12 +33,15 @@ export function ProjectSessionColumn({
   inboxUnseen,
   onSearch,
   onOpenInbox,
+  onOpenInboxMenu,
   onOpenNotes,
   onOpenAutomations,
   onOpenProject,
   onOpenSettings,
   onSelectProject,
   renderSession,
+  sessionFilter,
+  settingsActive = false,
   showList = true,
 }: {
   groups: readonly ProjectColumnGroup[];
@@ -53,12 +56,16 @@ export function ProjectSessionColumn({
   inboxUnseen: boolean;
   onSearch: () => void;
   onOpenInbox: () => void;
+  onOpenInboxMenu?: (x: number, y: number) => void;
   onOpenNotes?: () => void;
   onOpenAutomations: () => void;
   onOpenProject: () => void;
   onOpenSettings: () => void;
   onSelectProject: (path: string) => void;
   renderSession: (session: SessionSummary) => ReactNode;
+  /** Existing archive/filter control. Rendered on the search row. */
+  sessionFilter?: ReactNode;
+  settingsActive?: boolean;
   /** Action strip and Settings stay; the query and Spaces list hide. */
   showList?: boolean;
 }): JSX.Element {
@@ -81,6 +88,7 @@ export function ProjectSessionColumn({
           label="Inbox"
           icon={Inbox}
           onClick={onOpenInbox}
+          onOpenContextMenu={onOpenInboxMenu}
           dot={inboxUnseen}
           active={inboxActive}
         />
@@ -123,6 +131,7 @@ export function ProjectSessionColumn({
             className="h-full w-full min-w-0 rounded-md bg-transparent py-0 pl-7 pr-2 text-[12px] text-content outline-none placeholder:text-content/35"
           />
         </div>
+        {sessionFilter}
       </div>
       <div className="flex h-7 shrink-0 items-center gap-1 px-3 text-[12px] font-medium text-content/50">
         <span className="min-w-0 flex-1 truncate">Spaces</span>
@@ -208,6 +217,7 @@ export function ProjectSessionColumn({
           label="Settings"
           icon={Settings}
           onClick={onOpenSettings}
+          active={settingsActive}
         />
       </div>
     </div>
