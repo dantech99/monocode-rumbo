@@ -12049,6 +12049,36 @@ function Workspace({
     sidebarHistoryRows,
     sameSessionSummaries,
   );
+  // One project, including a remote cwd the rail loader skips. Settings and
+  // any other single-project consumer use this; Sidebar gets `sidebarHistory`.
+  const currentProjectHistoryRows = useMemo(
+    () =>
+      historyWithLiveSessions(
+        history,
+        promptableSessions,
+        sidebarCwd,
+        {
+          ...(projectBranches?.current
+            ? { branch: projectBranches.current }
+            : {}),
+          ...(sidebarCwd && sidebarCwd !== "~"
+            ? { repo: projectName(sidebarCwd) }
+            : {}),
+        },
+        orchestrationRuns,
+      ),
+    [
+      history,
+      orchestrationRuns,
+      projectBranches,
+      promptableSessions,
+      sidebarCwd,
+    ],
+  );
+  const currentProjectHistory = useStableValue(
+    currentProjectHistoryRows,
+    sameSessionSummaries,
+  );
   const {
     unseen: inboxUnseen,
     linkedSessionUpdateIds,
@@ -14657,7 +14687,7 @@ function Workspace({
                       notificationSettingsRequest={notificationSettingsRequest}
                       recents={recents}
                       cwd={sidebarCwd}
-                      sessions={sidebarHistory}
+                      sessions={currentProjectHistory}
                       liveSessions={sessions}
                       onRemoveWorktree={onRemoveWorktree}
                       onCheckWorktreeRemoval={onCheckWorktreeRemoval}
