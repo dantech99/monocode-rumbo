@@ -39,6 +39,7 @@ export function ProjectSessionColumn({
   onOpenSettings,
   onSelectProject,
   renderSession,
+  showList = true,
 }: {
   groups: readonly ProjectColumnGroup[];
   cwd: string;
@@ -58,9 +59,17 @@ export function ProjectSessionColumn({
   onOpenSettings: () => void;
   onSelectProject: (path: string) => void;
   renderSession: (session: SessionSummary) => ReactNode;
+  /** Action strip and Settings stay; the query and Spaces list hide. */
+  showList?: boolean;
 }): JSX.Element {
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div
+      className={
+        showList
+          ? "flex h-full min-h-0 flex-col"
+          : "flex min-h-0 shrink-0 flex-col"
+      }
+    >
       <div className="flex shrink-0 flex-col gap-px px-2 pt-1">
         <RailAction
           label="Search"
@@ -90,6 +99,8 @@ export function ProjectSessionColumn({
           active={automationsActive}
         />
       </div>
+      {showList ? (
+        <>
       <div className="flex h-9 shrink-0 items-center border-b border-stroke px-2">
         <div className="relative flex h-7 min-w-0 flex-1 items-center">
           <Search className="pointer-events-none absolute left-2 size-3 shrink-0 opacity-50" />
@@ -190,6 +201,8 @@ export function ProjectSessionColumn({
           );
         })}
       </nav>
+        </>
+      ) : null}
       <div className="shrink-0 p-2">
         <RailAction
           label="Settings"
