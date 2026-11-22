@@ -16,7 +16,6 @@ import { OrchestrationSidebarAgents } from "../../features/orchestration/ui/Orch
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   Archive,
-  Chatting,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -24,27 +23,19 @@ import {
   CircleAlert,
   CircleDashed,
   CircleDot,
-  Clock,
-  FileScript,
   Folder,
   GitBranch,
   GitPullRequest,
-  Inbox,
   ListFilter,
-  PanelLeft,
   Pin,
   Plus,
   Search,
   Share,
-  Settings,
-  StickyNote,
   Zap,
-  type IconComponent,
 } from "../../shared/ui/icons";
 import { createPortal } from "react-dom";
 import { useProjectSwipe } from "./useProjectSwipe";
 import {
-  Fragment,
   memo,
   useCallback,
   useEffect,
@@ -59,7 +50,6 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
-  type RefObject,
 } from "react";
 import {
   loadSidebarTabOrder,
@@ -112,18 +102,13 @@ import {
   buildSessionList,
   createFolderWithSessions,
   dissolveFolder,
-  folderAccent,
   folderContaining,
-  folderShellFill,
   loadPinnedSessionsCollapsed,
   loadReminderSessionsCollapsed,
   loadSessionFolders,
   mergeFolderSessionSummaries,
   pruneSessionFolders,
   removeSessionFromFolder,
-  renameFolder,
-  reorderSessionFolders,
-  savePinnedSessionsCollapsed,
   saveReminderSessionsCollapsed,
   saveSessionFolders,
   sessionListNavigationIds,
@@ -168,7 +153,6 @@ import { useDragResize } from "../../shared/hooks/useDragResize";
 import { useGitFileStatuses } from "../../features/source-control/hooks/useGitFileStatuses";
 import { useLockOverscroll } from "../../shared/hooks/useLockOverscroll";
 import { useProjectDiffStats } from "../../features/source-control/hooks/useProjectDiffStats";
-import { useSortable } from "../../shared/hooks/useSortable";
 import { useAnimatedReorder } from "../../shared/hooks/useAnimatedReorder";
 import { normalizeHex } from "../../shared/lib/colorUtils";
 import {
@@ -201,7 +185,6 @@ import {
   type ProjectColumnGroup,
 } from "./ProjectSessionColumn";
 import { InboxNotificationMenu } from "../../features/inbox/ui/InboxNotificationMenu";
-import { RailAction, RailSearch } from "./RailAction";
 import { TerminalSpinner } from "../../features/sessions/ui/TerminalSpinner";
 import { DevModeSlot, IconButton, TabVisitNav } from "./TitleBar";
 import { ProjectSearch } from "../../features/projects/ui/ProjectSearch";
@@ -221,28 +204,17 @@ import {
   reminderTime,
   type SessionReminder,
 } from "../../features/sessions/model/sessionReminders";
-import { SessionsEmpty } from "../../features/sessions/ui/SessionsEmpty";
 import { SidebarUpdateFooter } from "./SidebarUpdate";
 import { SourceControl } from "../../features/source-control/ui/SourceControl";
 import { GitHistoryGraph } from "../../features/source-control/ui/GitHistoryGraph";
 import { GithubStarPrompt } from "./GithubStarPrompt";
 import {
   isMonoSession,
-  listMonos,
-  MONO_STATUS_LABEL,
-  monoLook,
   monosSnapshot,
   subscribeMonos,
-  type MonoStatus,
 } from "../../features/monos/model/mono";
-import { MonoRailMascot } from "../../features/monos/ui/MonoRailMascot";
-import { useRailMonosPinned } from "../../features/settings/model/displayPrefs";
-import type { PickerMonos } from "../../features/projects/ui/SearchableProjectPicker";
 import { isHabitRun } from "../../features/monos/model/monoHabits";
 import {
-  MonoRailSection,
-  unreadBadge,
-  unreadLabel,
   type MonoRailProps,
 } from "./MonoRailSection";
 import {
@@ -270,7 +242,6 @@ const PEEK_HOLDING_MENU =
   "[data-popover-side]:not([role=tooltip]):not(:has([role=tooltip]))";
 const MAX_WIDTH = 560;
 const DEFAULT_WIDTH = 260;
-const REMINDERS_COLOR = "#f59e0b";
 const EMPTY_PROJECT_PATHS: ReadonlySet<string> = new Set();
 
 let rememberedWidth = DEFAULT_WIDTH;
@@ -283,13 +254,6 @@ const TAB_LABELS: Record<SidebarTab | RightPanelTab, string> = {
   files: "Explorer",
   changes: "Changes",
   graph: "History",
-};
-
-const COMPACT_TAB_ICONS: Record<SidebarTab, typeof PanelLeft> = {
-  sessions: Chatting,
-  inbox: Inbox,
-  files: FileScript,
-  changes: GitBranch,
 };
 
 function projectPathBusy(
@@ -526,15 +490,11 @@ function SidebarComponent({
   inboxUnseen = false,
   linkedSessionUpdateIds = new Set(),
   settingsOpen = false,
-  settingsSection = "general",
   onOpenSettings,
   onOpenNotificationSettings,
-  onSelectSettingsSection,
-  onCloseSettings,
   updateNotice = null,
   onOpenWhatsNew,
   onDismissUpdate,
-  monos,
   monoViewActive = false,
 }: Props) {
   const trafficLightsVisible = useTrafficLightsVisible();
@@ -713,19 +673,6 @@ function SidebarComponent({
       rememberedWidth = next;
     },
   });
-  const { setPaneWidth: setSidebarWidth } = resize;
-  const railSharedWidth = useMemo(
-    () => ({
-      width: resize.width,
-      min: minWidth,
-      max: () => Math.min(MAX_WIDTH, Math.floor(window.innerWidth * 0.5)),
-      onCommit: (next: number) => {
-        rememberedWidth = next;
-        setSidebarWidth(next);
-      },
-    }),
-    [resize.width, minWidth, setSidebarWidth],
-  );
   const [tabOrder, setTabOrder] = useState<SidebarTab[]>(loadSidebarTabOrder);
   const [rightTabOrder, setRightTabOrder] =
     useState<RightPanelTab[]>(loadRightPanelTabOrder);
@@ -753,7 +700,7 @@ function SidebarComponent({
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(
     null,
   );
-  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
+  const [, setRenamingFolderId] = useState<string | null>(null);
   const [sessionFolders, setSessionFolders] = useState<SessionFolder[]>(() =>
     loadSessionFolders(cwd),
   );
@@ -775,7 +722,6 @@ function SidebarComponent({
   const [searchQuery, setSearchQuery] = useState("");
   const [sessionListLimit, setSessionListLimit] = useState(LIST_PAGE_SIZE);
   const loadMoreRef = useRef<HTMLLIElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const pendingFolderSessionIds = useRef(new Set<string>());
   const busyIdsRef = useRef(busySessionIds);
   const focusedSessionIdRef = useRef(activeSessionId);
@@ -944,17 +890,6 @@ function SidebarComponent({
     pinnedSessionsCollapsed,
     reminderGroup,
   );
-  const firstLooseSessionIndex = sessionListEntries.findIndex(
-    (entry) => entry.kind === "session",
-  );
-  // Reminders, folders and Pinned come first, under one label.
-  const firstGroupIndex = sessionListEntries.findIndex(
-    (entry) => entry.kind !== "session",
-  );
-  const groupFollows = (index: number) => {
-    const next = sessionListEntries[index + 1];
-    return !!next && next.kind !== "session";
-  };
   // The inset list heads its loose sessions by when they were last active,
   // the order they are sorted in, so each label starts one unbroken run.
   const looseSessionLabels = new Map<number, string>();
@@ -995,7 +930,6 @@ function SidebarComponent({
   const hasMoreSessions = shownUngroupedCount < ungroupedVisible.length;
   const sessionListKey = `${cwd}\0${sessionFilters.showArchived}\0${sessionFilters.time}\0${sessionFilters.hiddenHarnesses.join(",")}\0${sessionFilters.status.working}\0${sessionFilters.status.needsApproval}\0${sessionFilters.status.done}\0${searchQuery}`;
   const sessionHarnesses = harnessesInSessions(projectSessions);
-  const narrowedByUser = searchNarrowed || filtersActive;
   const visibleTabs = tabOrder.filter((itemId) => itemId !== "inbox");
   const onReorderTabs = (ids: SidebarTab[]) => {
     const reordered = new Set(ids);
@@ -1011,21 +945,6 @@ function SidebarComponent({
     saveRightPanelTabOrder(tabs);
   };
   const sortable = useAnimatedReorder(visibleTabs, onReorderTabs);
-  const visibleFolderIds = sessionListEntries.flatMap((entry) =>
-    entry.kind === "folder" ? [entry.folder.id] : [],
-  );
-  const folderSortable = useSortable(
-    visibleFolderIds,
-    (ids) => {
-      setSessionFolders((current) => {
-        const next = reorderSessionFolders(current, ids);
-        if (next === current) return current;
-        saveSessionFolders(cwd, next);
-        return next;
-      });
-    },
-    { axis: "y" },
-  );
   const showProjectRail = Boolean(onSelectProject && onOpenProject);
   // Settings live in the rail slot, so they keep it visible even when the
   // project rail itself is collapsed.
@@ -1044,10 +963,6 @@ function SidebarComponent({
     notesActive ||
     automationsActive ||
     settingsOpen;
-  // A remembered Mono sits underneath these views; select it only while visible.
-  const railMonos = monos
-    ? { ...monos, activeId: otherViewActive ? undefined : monos.activeId }
-    : undefined;
   // Likewise the session they cover stays current but isn't shown selected.
   const highlightedSessionId =
     otherViewActive || monoViewActive ? undefined : activeListedSessionId;
@@ -1484,21 +1399,6 @@ function SidebarComponent({
     saveSessionFolders(cwd, next);
   };
 
-  const onNewInFolder = (folderId: string) => {
-    const sessionId = onNew?.();
-    if (!sessionId) return;
-    pendingFolderSessionIds.current.add(sessionId);
-    setSearchQuery("");
-    setSessionFolders((current) => {
-      const next = setFolderCollapsed(
-        addSessionToFolder(current, folderId, sessionId),
-        folderId,
-        false,
-      );
-      saveSessionFolders(cwd, next);
-      return next;
-    });
-  };
 
   const menuSessionIds = sessionMenu
     ? orderedSessionActionIds(
@@ -1691,17 +1591,6 @@ function SidebarComponent({
     contextSelectionRef.current = false;
     selectionAnchorRef.current = null;
     setSelectedSessionIds(new Set());
-  };
-
-  const onFolderContextMenu = (
-    folderId: string,
-    e: ReactMouseEvent<HTMLButtonElement>,
-  ) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setFilterMenu(null);
-    setSessionMenu(null);
-    setFolderMenu({ x: e.clientX, y: e.clientY, folderId });
   };
 
   const onSessionMenuPick = (id: string) => {
@@ -1955,55 +1844,6 @@ function SidebarComponent({
   });
 
   // A session row, with the sessions it started hanging off a rail below it.
-  const renderSessionCard = (session: SessionSummary, compact = false) => {
-    const started = startedSessions.byParent.get(session.id);
-    if (!started?.length) return renderSessionRow(session, compact);
-    // Open while the thread or one of its sessions is the one in view, chosen
-    // or working, as an orchestrator's agents are.
-    const inPlay = (id: string) =>
-      id === highlightedSessionId ||
-      selectedSessionIds.has(id) ||
-      listedBusySessionIds.has(id);
-    const open =
-      inPlay(session.id) || started.some((child) => inPlay(child.id));
-    const card = renderSessionRow(session, compact, {
-      startedCount: started.length,
-      startedOpen: open,
-      startedInView: started.some(
-        (child) =>
-          child.id === highlightedSessionId || selectedSessionIds.has(child.id),
-      ),
-    });
-    return (
-      <>
-        {card}
-        {/* The rail drops from under the row's mark, as an orchestrator's
-            agents do. New launches grow in under it; the whole rail does
-            when it is the first. */}
-        <RevealHeight
-          className="ml-2.5"
-          data-started-sessions={session.id}
-          open={open}
-          animateIn={started.every((child) => freshStarted.has(child.id))}
-        >
-          <div className="pt-1">
-            {started.map((child) => (
-              <RevealHeight
-                key={child.id}
-                className="zen-phase-step orchestration-tree-step"
-                animateIn={
-                  freshStarted.has(child.id) &&
-                  !started.every((other) => freshStarted.has(other.id))
-                }
-              >
-                {renderSessionRow(child, compact, { nested: true })}
-              </RevealHeight>
-            ))}
-          </div>
-        </RevealHeight>
-      </>
-    );
-  };
 
   const renderSessionRow = (
     session: SessionSummary,
@@ -2088,47 +1928,12 @@ function SidebarComponent({
     });
   };
 
-  const sessionSearchInput = (
-    <input
-      ref={searchInputRef}
-      type="text"
-      value={searchQuery}
-      placeholder="Search conversations..."
-      aria-label="Search conversations"
-      spellCheck={false}
-      autoComplete="off"
-      autoCorrect="off"
-      autoCapitalize="off"
-      onChange={(event) => setSearchQuery(event.target.value)}
-      onKeyDown={(event) => {
-        if (event.key !== "Escape") return;
-        event.preventDefault();
-        event.stopPropagation();
-        if (searchQuery) {
-          setSearchQuery("");
-        }
-      }}
-      className="h-full w-full min-w-0 rounded-md bg-transparent py-0 pl-7 pr-2 text-[12px] text-content outline-none placeholder:text-content/35"
-    />
-  );
-
   const onTabPick = (itemId: SidebarTab) => {
-    onTabChange(itemId);
-  };
-
-  const onCompactTabPick = (itemId: SidebarTab) => {
-    if (drawerMode) {
-      setDrawerOpen(!(drawerVisible && tab === itemId));
-    }
     onTabChange(itemId);
   };
 
   const changeAdditions = changeStats?.additions ?? 0;
   const changeDeletions = changeStats?.deletions ?? 0;
-  const hasChanges = (changeStats?.files ?? 0) > 0;
-  const hasUnseenFinished = listedSessions.some((session) =>
-    unseenFinishedIds.has(session.id),
-  );
   const hasChangeStats = changeAdditions > 0 || changeDeletions > 0;
   const changesLabel = hasChangeStats
     ? [
@@ -2496,49 +2301,7 @@ function SidebarComponent({
   );
   // Stands in for the date labels when no loose session is listed, so the
   // filter stays reachable.
-  const sessionsLabel = inset ? (
-    <SidebarSectionLabel label="Sessions">
-      {sessionsFilterButton}
-    </SidebarSectionLabel>
-  ) : null;
 
-  const navList = inset ? (
-    <SidebarNavList
-      search={
-        onSearch ? { active: searchActive, onClick: onSearch } : undefined
-      }
-      items={[
-        onOpenInbox && {
-          label: "Inbox",
-          icon: Inbox,
-          active: inboxActive,
-          dot: inboxUnseen,
-          onClick: onOpenInbox,
-          onOpenContextMenu: (x, y) => {
-            headerProjectMenu.close();
-            insetInboxTrigger.current =
-              document.activeElement instanceof HTMLElement
-                ? document.activeElement
-                : null;
-            setInsetInboxMenu({ x, y });
-          },
-        },
-        notesEnabled &&
-          onOpenNotes && {
-            label: "Notes",
-            icon: StickyNote,
-            active: notesActive,
-            onClick: onOpenNotes,
-          },
-        onOpenAutomations && {
-          label: "Automations",
-          icon: Zap,
-          active: automationsActive,
-          onClick: onOpenAutomations,
-        },
-      ]}
-    />
-  ) : null;
 
   const filesPane = (
     <div
@@ -3037,551 +2800,6 @@ function SearchableProjectPickerWithMenu({
   );
 }
 
-function SidebarProjectPicker({
-  cwd,
-  recents,
-  busy,
-  onSelectProject,
-  onOpenProject,
-  onRemoveProject,
-  onNew,
-  onSearch,
-  onOpenInbox,
-  onOpenNotificationSettings,
-  onOpenNotes,
-  onOpenAutomations,
-  searchActive = false,
-  inboxActive = false,
-  notesActive = false,
-  automationsActive = false,
-  inboxUnseen = false,
-}: {
-  cwd: string;
-  recents: RecentProject[];
-  busy: boolean;
-  onSelectProject: (path: string) => void;
-  onOpenProject?: () => void;
-  onRemoveProject?: Props["onRemoveProject"];
-  onNew?: () => string | void;
-  onSearch?: () => void;
-  onOpenInbox?: () => void;
-  onOpenNotificationSettings?: (projectPath?: string) => void;
-  onOpenNotes?: () => void;
-  onOpenAutomations?: () => void;
-  searchActive?: boolean;
-  inboxActive?: boolean;
-  notesActive?: boolean;
-  automationsActive?: boolean;
-  inboxUnseen?: boolean;
-}) {
-  const [inboxMenu, setInboxMenu] = useState<{ x: number; y: number } | null>(
-    null,
-  );
-  const inboxTrigger = useRef<HTMLElement | null>(null);
-  return (
-    <div
-      className="flex h-9 items-center gap-0.5 border-b border-stroke px-2"
-      data-tauri-drag-region="deep"
-    >
-      <SearchableProjectPickerWithMenu
-        cwd={cwd}
-        recents={recents}
-        busy={busy}
-        className="flex-1"
-        onSelectProject={onSelectProject}
-        onOpenProject={onOpenProject}
-        onRemoveProject={onRemoveProject}
-        onOpenNotificationSettings={onOpenNotificationSettings}
-      />
-      <div className="ml-auto flex items-center">
-        {onNew ? (
-          <IconButton label={`New tab (${MOD}T)`} onClick={onNew}>
-            <Plus className="size-3.5" strokeWidth={1.75} />
-          </IconButton>
-        ) : null}
-        {onSearch ? (
-          <IconButton
-            label={`Search (${MOD}K)`}
-            active={searchActive}
-            onClick={onSearch}
-          >
-            <Search className="size-3.5" strokeWidth={1.75} />
-          </IconButton>
-        ) : null}
-        {onOpenInbox ? (
-          <IconButton
-            label={inboxUnseen ? "Inbox, new items" : "Inbox"}
-            active={inboxActive}
-            onClick={onOpenInbox}
-            onOpenContextMenu={(x, y) => {
-              inboxTrigger.current =
-                document.activeElement instanceof HTMLElement
-                  ? document.activeElement
-                  : null;
-              setInboxMenu({ x, y });
-            }}
-          >
-            <span className="relative">
-              <Inbox className="size-3.5" strokeWidth={1.75} />
-              {inboxUnseen ? (
-                <span
-                  aria-hidden
-                  className="absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-accent"
-                />
-              ) : null}
-            </span>
-          </IconButton>
-        ) : null}
-        {onOpenNotes ? (
-          <IconButton label="Notes" active={notesActive} onClick={onOpenNotes}>
-            <StickyNote className="size-3.5" strokeWidth={1.75} />
-          </IconButton>
-        ) : null}
-        {onOpenAutomations ? (
-          <IconButton
-            label="Automations"
-            active={automationsActive}
-            onClick={onOpenAutomations}
-          >
-            <Zap className="size-3.5" strokeWidth={1.75} />
-          </IconButton>
-        ) : null}
-      </div>
-      {inboxMenu ? (
-        <InboxNotificationMenu
-          {...inboxMenu}
-          projectPaths={[...collectRailProjects(recents, cwd).keys()]}
-          onOpenSettings={onOpenNotificationSettings}
-          onClose={() => {
-            setInboxMenu(null);
-            inboxTrigger.current?.focus();
-          }}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function CompactProjectRail({
-  cwd,
-  recents,
-  busy,
-  tabs,
-  activeTab,
-  tabShown,
-  changesLabel,
-  changeAdditions,
-  changeDeletions,
-  hasChanges,
-  hasUnseenFinished,
-  inboxUnseen,
-  onSelectProject,
-  onOpenProject,
-  onRemoveProject,
-  onTabChange,
-  onSearch,
-  searchActive,
-  onOpenInbox,
-  inboxActive,
-  onOpenNotificationSettings,
-  onOpenNotes,
-  notesActive,
-  onOpenAutomations,
-  automationsActive,
-  onOpenSettings,
-  onTogglePanel,
-  onLeaveActive,
-  titleBarAbove,
-  monos,
-  monoViewActive = false,
-}: {
-  cwd: string;
-  recents: RecentProject[];
-  busy: boolean;
-  tabs: SidebarTab[];
-  activeTab: SidebarTab;
-  tabShown: boolean;
-  changesLabel: string;
-  changeAdditions: number;
-  changeDeletions: number;
-  hasChanges: boolean;
-  /** A session here finished a reply the user has not opened. */
-  hasUnseenFinished: boolean;
-  inboxUnseen: boolean;
-  onSelectProject?: (path: string) => void;
-  onOpenProject?: () => void;
-  onRemoveProject?: Props["onRemoveProject"];
-  onTabChange: (tab: SidebarTab) => void;
-  onSearch?: () => void;
-  searchActive: boolean;
-  onOpenInbox?: () => void;
-  inboxActive: boolean;
-  onOpenNotificationSettings?: (projectPath?: string) => void;
-  onOpenNotes?: () => void;
-  notesActive: boolean;
-  onOpenAutomations?: () => void;
-  automationsActive: boolean;
-  onOpenSettings?: () => void;
-  onTogglePanel?: () => void;
-  onLeaveActive?: () => void;
-  titleBarAbove: boolean;
-  /** Monos have no row here, so the project button lists them too. */
-  monos?: MonoRailProps;
-  /** A Mono fills the main area: no workspace tab is the current one. */
-  monoViewActive?: boolean;
-}) {
-  const monosSnap = useSyncExternalStore(subscribeMonos, monosSnapshot);
-  const monosPinned = useRailMonosPinned();
-  const monoItems = useMemo(() => {
-    if (!monos) return [];
-    return listMonos().map((mono) => ({
-      id: mono.id,
-      ...monoLook(mono),
-      status: monos.states.get(mono.id)?.status ?? "idle",
-    }));
-    // The roster is read through its snapshot.
-  }, [monos, monosSnap]);
-  const pickerMonos = useMemo((): PickerMonos | undefined => {
-    if (!monos) return undefined;
-    return {
-      // Pinned Monos have their own buttons; the picker keeps "New mono".
-      items: monosPinned ? [] : monoItems,
-      activeId: monos.activeId,
-      onOpen: monos.onOpen,
-      onCreate: monos.onCreate,
-    };
-  }, [monos, monoItems, monosPinned]);
-  const [inboxMenu, setInboxMenu] = useState<{ x: number; y: number } | null>(
-    null,
-  );
-  const inboxTrigger = useRef<HTMLElement | null>(null);
-  const action = (active: boolean, open?: () => void) =>
-    active && onLeaveActive ? onLeaveActive : open;
-  const workspaceActive =
-    !searchActive &&
-    !inboxActive &&
-    !notesActive &&
-    !automationsActive &&
-    !monoViewActive;
-  const openWorkspaceTab = (nextTab: SidebarTab) => {
-    if (!workspaceActive) onLeaveActive?.();
-    onTabChange(nextTab);
-  };
-  const railTooltip = useRailTooltip();
-
-  return (
-    <nav
-      aria-label="Project shortcuts"
-      data-compact-project-rail
-      {...railTooltip.handlers}
-      className="sidebar-glass relative flex h-full w-12 shrink-0 flex-col items-center"
-    >
-      {titleBarAbove ? null : (
-        <div
-          className="h-10 w-full shrink-0 border-b border-stroke"
-          data-tauri-drag-region="deep"
-        />
-      )}
-      <span
-        aria-hidden
-        data-compact-rail-divider
-        className={`pointer-events-none absolute bottom-0 right-0 w-px bg-stroke ${
-          titleBarAbove ? "top-0" : "top-10"
-        }`}
-      />
-      <div
-        data-compact-rail-actions
-        className="flex w-full shrink-0 flex-col items-center gap-1.5 py-1.5"
-      >
-        <CompactRailAction
-          label="Expand projects"
-          tooltip={false}
-          icon={PanelLeft}
-          onClick={onTogglePanel}
-        />
-        {monos && monosPinned && monoItems.length ? (
-          <>
-            <div
-              role="group"
-              aria-label="Monos"
-              data-compact-rail-monos
-              className="flex flex-col items-center gap-1.5"
-            >
-              {monoItems.map((mono) => (
-                <CompactRailMono
-                  key={mono.id}
-                  name={mono.name}
-                  mascot={mono.mascot}
-                  color={mono.color}
-                  status={mono.status}
-                  active={mono.id === monos.activeId}
-                  unseen={
-                    mono.id === monos.activeId
-                      ? 0
-                      : (monos.unseenCounts?.get(mono.id) ?? 0)
-                  }
-                  onClick={() => monos.onOpen(mono.id)}
-                />
-              ))}
-            </div>
-            <span
-              aria-hidden
-              data-compact-rail-monos-divider
-              className="h-px w-6 shrink-0 bg-stroke"
-            />
-          </>
-        ) : null}
-        {onSelectProject ? (
-          <SearchableProjectPickerWithMenu
-            cwd={cwd}
-            recents={recents}
-            busy={busy}
-            compact
-            className="w-full justify-center"
-            onSelectProject={onSelectProject}
-            onOpenProject={onOpenProject}
-            onRemoveProject={onRemoveProject}
-            onOpenNotificationSettings={onOpenNotificationSettings}
-            monos={pickerMonos}
-          />
-        ) : null}
-        <div
-          role="tablist"
-          aria-label="Workspace"
-          aria-orientation="vertical"
-          className="flex flex-col items-center gap-1.5"
-        >
-          {tabs.map((itemId) => (
-            <CompactRailAction
-              key={itemId}
-              tab
-              label={
-                itemId === "changes"
-                  ? changesLabel
-                  : itemId === "sessions" && hasUnseenFinished
-                    ? "Sessions, new replies"
-                    : TAB_LABELS[itemId]
-              }
-              tipLabel={TAB_LABELS[itemId]}
-              diff={
-                itemId === "changes"
-                  ? { additions: changeAdditions, deletions: changeDeletions }
-                  : undefined
-              }
-              icon={COMPACT_TAB_ICONS[itemId]}
-              active={workspaceActive && tabShown && activeTab === itemId}
-              dot={
-                (itemId === "changes" && hasChanges) ||
-                (itemId === "sessions" && hasUnseenFinished)
-              }
-              onClick={() => openWorkspaceTab(itemId)}
-            />
-          ))}
-        </div>
-        <CompactRailAction
-          label="Search"
-          shortcut={`${MOD}K`}
-          icon={Search}
-          active={searchActive}
-          onClick={action(searchActive, onSearch)}
-        />
-        <CompactRailAction
-          label={inboxUnseen ? "Inbox, new items" : "Inbox"}
-          icon={Inbox}
-          active={inboxActive}
-          dot={inboxUnseen}
-          onClick={action(inboxActive, onOpenInbox)}
-          onOpenContextMenu={(x, y) => {
-            inboxTrigger.current =
-              document.activeElement instanceof HTMLElement
-                ? document.activeElement
-                : null;
-            setInboxMenu({ x, y });
-          }}
-        />
-        {onOpenNotes ? (
-          <CompactRailAction
-            label="Notes"
-            icon={StickyNote}
-            active={notesActive}
-            onClick={action(notesActive, onOpenNotes)}
-          />
-        ) : null}
-        <CompactRailAction
-          label="Automations"
-          icon={Zap}
-          active={automationsActive}
-          onClick={action(automationsActive, onOpenAutomations)}
-        />
-      </div>
-      <div className="min-h-2 flex-1" />
-      <div className="flex w-full flex-col items-center gap-1 py-1.5">
-        <CompactRailAction
-          label="Settings"
-          shortcut={`${MOD},`}
-          tooltip={false}
-          icon={Settings}
-          onClick={onOpenSettings}
-        />
-      </div>
-      {inboxMenu ? (
-        <InboxNotificationMenu
-          {...inboxMenu}
-          projectPaths={[...collectRailProjects(recents, cwd).keys()]}
-          onOpenSettings={onOpenNotificationSettings}
-          onClose={() => {
-            setInboxMenu(null);
-            inboxTrigger.current?.focus();
-          }}
-        />
-      ) : null}
-      {railTooltip.tooltip}
-    </nav>
-  );
-}
-
-function CompactRailMono({
-  name,
-  mascot,
-  color,
-  status,
-  active,
-  unseen,
-  onClick,
-}: {
-  name: string;
-  mascot: string;
-  color: string;
-  status: MonoStatus;
-  active: boolean;
-  /** Replies the user has not read. */
-  unseen: number;
-  onClick: () => void;
-}) {
-  const label = `${name}, ${MONO_STATUS_LABEL[status]}`;
-  return (
-    <button
-      type="button"
-      data-rail-tip={name}
-      data-rail-tip-detail={
-        unseen
-          ? `${MONO_STATUS_LABEL[status]} · ${unreadLabel(unseen)}`
-          : MONO_STATUS_LABEL[status]
-      }
-      aria-label={unseen ? `${label}, ${unreadLabel(unseen)}` : label}
-      aria-current={active ? "true" : undefined}
-      data-compact-rail-mono
-      onClick={onClick}
-      className={`relative grid size-8 shrink-0 place-items-center rounded-md active:scale-[0.97] ${
-        active
-          ? "bg-selection"
-          : "opacity-65 hover:bg-content/10 hover:opacity-100"
-      }`}
-    >
-      <MonoRailMascot name={mascot} color={color} status={status} />
-      {unseen ? (
-        <span
-          aria-hidden
-          data-mono-unread={unseen}
-          className="absolute -right-0.5 -top-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-background-base px-0.5 text-[9px] font-medium tabular-nums leading-none text-content/80 ring-1 ring-content/15"
-        >
-          {unreadBadge(unseen)}
-        </span>
-      ) : null}
-    </button>
-  );
-}
-
-function CompactRailAction({
-  label,
-  shortcut,
-  tooltip = true,
-  tipLabel = label,
-  diff,
-  icon: Icon,
-  tab = false,
-  active = false,
-  dot = false,
-  onClick,
-  onOpenContextMenu,
-}: {
-  label: string;
-  shortcut?: string;
-  tooltip?: boolean;
-  /** The tooltip's name, when the accessible label carries more. */
-  tipLabel?: string;
-  /** Colored +n -n beside the tooltip's name. */
-  diff?: { additions: number; deletions: number };
-  icon: typeof PanelLeft;
-  tab?: boolean;
-  active?: boolean;
-  dot?: boolean;
-  onClick?: () => void;
-  onOpenContextMenu?: (x: number, y: number) => void;
-}) {
-  return (
-    <button
-      type="button"
-      role={tab ? "tab" : undefined}
-      data-rail-tip={tooltip ? tipLabel : undefined}
-      data-rail-tip-detail={tooltip ? shortcut : undefined}
-      data-rail-tip-additions={
-        tooltip && diff?.additions ? diff.additions : undefined
-      }
-      data-rail-tip-deletions={
-        tooltip && diff?.deletions ? diff.deletions : undefined
-      }
-      aria-label={shortcut ? `${label} (${shortcut})` : label}
-      aria-selected={tab ? active : undefined}
-      aria-pressed={tab ? undefined : active}
-      disabled={!onClick}
-      onClick={onClick}
-      onContextMenu={
-        onOpenContextMenu
-          ? (event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              event.currentTarget.focus();
-              onOpenContextMenu(event.clientX, event.clientY);
-            }
-          : undefined
-      }
-      onKeyDown={
-        onOpenContextMenu
-          ? (event) => {
-              if (
-                event.key !== "ContextMenu" &&
-                !(event.shiftKey && event.key === "F10")
-              )
-                return;
-              event.preventDefault();
-              event.stopPropagation();
-              event.currentTarget.focus();
-              const rect = event.currentTarget.getBoundingClientRect();
-              onOpenContextMenu(rect.right, rect.top);
-            }
-          : undefined
-      }
-      className={`relative grid size-8 shrink-0 place-items-center rounded-md active:scale-[0.97] ${
-        active
-          ? "bg-selection text-content"
-          : "text-content/50 hover:bg-content/10 hover:text-content"
-      } disabled:cursor-default disabled:opacity-35`}
-    >
-      <Icon
-        className={`size-4 ${dot ? "compact-rail-icon-with-dot" : ""}`}
-        strokeWidth={1.75}
-      />
-      {dot ? (
-        <span
-          aria-hidden
-          className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-accent"
-        />
-      ) : null}
-    </button>
-  );
-}
-
 /** Zen-style spaces at the foot of the inset sidebar: each project's logo or
  * mascot, the current one lifted, and a way to open another. */
 /** Projects the spaces bar shows at once; the chevrons page through more. */
@@ -3915,84 +3133,6 @@ export function groupStartedSessions<T extends { id: string }>(
   return { byParent, childIds };
 }
 
-/** A quiet heading over a group in the inset sidebar, actions at its end. */
-function SidebarSectionLabel({
-  label,
-  children,
-}: {
-  label: string;
-  children?: ReactNode;
-}) {
-  return (
-    <div className="flex h-7 shrink-0 items-center gap-1 px-2 text-[12px] font-medium text-content/50">
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {/* Pulled out so a button's icon, not its padding, lines up with the
-          rows' trailing edge (their padding and border). */}
-      {children ? <span className="-mr-[5px] flex">{children}</span> : null}
-    </div>
-  );
-}
-
-type SidebarNavItem = {
-  label: string;
-  icon: IconComponent;
-  shortcut?: string;
-  active?: boolean;
-  dot?: boolean;
-  onClick: () => void;
-  onOpenContextMenu?: (x: number, y: number) => void;
-};
-
-/** The inset sidebar's links to the app-wide views, under the project. */
-function SidebarNavList({
-  search,
-  items,
-}: {
-  /** The project rail's search field, above the links. */
-  search?: { active: boolean; onClick: () => void };
-  items: readonly (SidebarNavItem | false | undefined)[];
-}) {
-  const shown = items.filter((item): item is SidebarNavItem => !!item);
-  if (!search && !shown.length) return null;
-  return (
-    <nav
-      aria-label="Views"
-      className="flex shrink-0 flex-col gap-px px-2 pb-3 pt-1"
-    >
-      {/* The project rail's search and rows, so the two layouts read the
-          same. */}
-      {search ? (
-        <>
-          <RailSearch
-            label="Search"
-            icon={Search}
-            onClick={search.onClick}
-            active={search.active}
-            shortcut={`${MOD}K`}
-            ariaLabel={`Search (${MOD}K)`}
-          />
-          <div className="mt-0.5" />
-        </>
-      ) : null}
-      {shown.map(
-        ({ label, icon, shortcut, active, dot, onClick, onOpenContextMenu }) => (
-          <RailAction
-            key={label}
-            label={label}
-            icon={icon}
-            shortcut={shortcut}
-            active={active}
-            dot={dot}
-            ariaLabel={dot ? `${label}, new items` : undefined}
-            onClick={onClick}
-            onOpenContextMenu={onOpenContextMenu}
-          />
-        ),
-      )}
-    </nav>
-  );
-}
-
 function WorkspaceTitleActions({
   onSearch,
   onNew,
@@ -4104,341 +3244,9 @@ function FolderColorSwatches({
   );
 }
 
-function FolderRow({
-  folder,
-  sessions,
-  expanded,
-  dropTarget,
-  busy,
-  done,
-  needsApproval,
-  groupIcon,
-  label = false,
-  dense = false,
-  onPointerDown,
-  onToggle,
-  onContextMenu,
-  onRename,
-}: {
-  folder: Pick<SessionFolder, "name" | "colorIndex" | "customColor">;
-  /** A section label, as in the inset sidebar: the name and a caret. */
-  label?: boolean;
-  /** Sized like the inset sidebar's session cards. */
-  dense?: boolean;
-  sessions: SessionSummary[];
-  expanded: boolean;
-  dropTarget: boolean;
-  busy: boolean;
-  done: boolean;
-  needsApproval: boolean;
-  groupIcon?: ReactNode;
-  onPointerDown?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  onToggle: () => void;
-  onContextMenu?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
-  onRename?: () => void;
-}) {
-  const count = sessions.length;
-  const accent = folderAccent(folder.colorIndex, folder.customColor);
-  if (label)
-    return (
-      <button
-        type="button"
-        title={folder.name}
-        aria-expanded={expanded}
-        data-tauri-drag-region="false"
-        onPointerDown={onPointerDown}
-        onClick={onToggle}
-        onContextMenu={onContextMenu}
-        onKeyDown={(event) => {
-          if (event.key === "F2" && onRename) {
-            event.preventDefault();
-            onRename();
-          }
-        }}
-        className={`relative flex h-7 w-full touch-none items-center gap-1.5 rounded-md px-2 text-left text-[12px] font-medium text-content/50 hover:text-content/80 ${
-          dropTarget ? "text-content" : ""
-        }`}
-      >
-        {dropTarget ? (
-          <div className="pointer-events-none absolute inset-0 rounded-md bg-accent/20" />
-        ) : null}
-        {accent ? (
-          <span
-            aria-hidden
-            className="relative size-1.5 shrink-0 rounded-full"
-            style={{ background: accent }}
-          />
-        ) : null}
-        <span className="relative min-w-0 truncate">{folder.name}</span>
-        <ChevronDown
-          className={`relative size-3 shrink-0 transition-transform motion-reduce:transition-none ${
-            expanded ? "" : "-rotate-90"
-          }`}
-          strokeWidth={2}
-        />
-        <span className="relative ml-auto flex shrink-0 items-center gap-1 text-[11px] tabular-nums">
-          {!expanded && needsApproval ? (
-            <CircleAlert className="size-3 text-amber-400" strokeWidth={1.75} />
-          ) : !expanded && busy ? (
-            <TerminalSpinner className="inline-block w-3 select-none text-center text-[11px] leading-none text-accent" />
-          ) : !expanded && done ? (
-            <Check className="size-3 text-emerald-400" strokeWidth={2.25} />
-          ) : null}
-          {expanded ? null : <span>{count}</span>}
-        </span>
-      </button>
-    );
-  return (
-    <button
-      type="button"
-      title={folder.name}
-      aria-expanded={expanded}
-      data-tauri-drag-region="false"
-      onPointerDown={onPointerDown}
-      onClick={onToggle}
-      onContextMenu={onContextMenu}
-      onKeyDown={(event) => {
-        if (event.key === "F2" && onRename) {
-          event.preventDefault();
-          onRename();
-        }
-      }}
-      className={`group relative flex w-full touch-none items-center ${
-        dense ? "gap-2" : "gap-1.5"
-      } px-2 h-8 text-left ${expanded || dense ? "rounded-md" : ""} ${
-        dropTarget
-          ? "text-content"
-          : dense
-            ? // Muted like the links above it, Search through Automations.
-              "text-content/50 hover:bg-content/10 hover:text-content"
-            : expanded
-              ? "text-content hover:bg-content/10"
-              : "text-content/80 hover:bg-content/10 hover:text-content"
-      }`}
-    >
-      {dropTarget ? (
-        <div className="pointer-events-none absolute inset-0 rounded-md bg-accent/20" />
-      ) : null}
-      <span
-        className={`relative grid size-4 shrink-0 place-items-center ${
-          dense ? "opacity-70" : accent ? "" : "text-content/50"
-        }`}
-        style={accent ? { color: accent } : undefined}
-      >
-        {expanded ? (
-          groupIcon ? (
-            <>
-              <span className="group-hover:hidden group-focus-visible:hidden">
-                {groupIcon}
-              </span>
-              <ChevronDown
-                className={`hidden ${dense ? "size-4" : "size-3.5 text-content"} group-hover:block group-focus-visible:block`}
-                strokeWidth={1.75}
-              />
-            </>
-          ) : (
-            <ChevronDown
-              className={dense ? "size-4" : "size-3.5 text-content"}
-              strokeWidth={1.75}
-            />
-          )
-        ) : (
-          <>
-            <span className="group-hover:hidden group-focus-visible:hidden">
-              {groupIcon ?? (
-                <Folder
-                  className={dense ? "size-4" : "size-3.5 text-content"}
-                  strokeWidth={1.75}
-                />
-              )}
-            </span>
-            <ChevronRight
-              className={`hidden ${dense ? "size-4" : "size-3.5 text-content"} group-hover:block group-focus-visible:block`}
-              strokeWidth={1.75}
-            />
-          </>
-        )}
-      </span>
-      <span
-        className={`relative min-w-0 flex-1 truncate ${
-          dense
-            ? "text-sm font-medium leading-tight"
-            : "text-[13px] font-semibold leading-snug text-content"
-        }`}
-      >
-        {folder.name}
-      </span>
-      <span
-        className={`relative flex shrink-0 items-center gap-1 text-[11px] tabular-nums ${
-          dense ? "text-content/40" : "text-content/45"
-        }`}
-      >
-        {!expanded && needsApproval ? (
-          <CircleAlert className="size-3 text-amber-400" strokeWidth={1.75} />
-        ) : !expanded && busy ? (
-          <TerminalSpinner className="inline-block w-3 select-none text-center text-[11px] leading-none text-accent" />
-        ) : !expanded && done ? (
-          <Check className="size-3 text-emerald-400" strokeWidth={2.25} />
-        ) : null}
-        <span>{count}</span>
-      </span>
-    </button>
-  );
-}
-
-function FolderRenameRow({
-  folder,
-  memberCount,
-  dropTarget,
-  onCommit,
-  onCancel,
-}: {
-  folder: SessionFolder;
-  memberCount: number;
-  dropTarget: boolean;
-  onCommit: (name: string) => void;
-  onCancel: () => void;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const finished = useRef(false);
-  const [value, setValue] = useState(folder.name);
-
-  useEffect(() => {
-    const input = inputRef.current;
-    if (!input) return;
-    input.focus();
-    input.select();
-  }, []);
-
-  const finish = (success: boolean) => {
-    if (finished.current) return;
-    if (success) {
-      const trimmed = value.trim();
-      if (!trimmed) {
-        onCancel();
-        return;
-      }
-      finished.current = true;
-      onCommit(trimmed);
-      return;
-    }
-    finished.current = true;
-    onCancel();
-  };
-
-  return (
-    <div
-      className={`relative flex w-full items-center gap-1.5 px-2 py-1.5 ${
-        dropTarget ? "" : "text-content"
-      }`}
-    >
-      {dropTarget ? (
-        <div className="pointer-events-none absolute inset-0 rounded-md bg-accent/20" />
-      ) : null}
-      <span className="relative grid size-4 shrink-0 place-items-center text-content/50">
-        <ChevronDown className="size-3.5" strokeWidth={1.75} />
-      </span>
-      <input
-        ref={inputRef}
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-        onBlur={() => finish(true)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            finish(true);
-            return;
-          }
-          if (event.key === "Escape") {
-            event.preventDefault();
-            finish(false);
-          }
-        }}
-        className="relative min-w-0 flex-1 rounded bg-content/10 px-2 py-0.5 text-[13px] font-semibold leading-snug text-content outline-none ring-1 ring-accent/40"
-      />
-      <span className="relative shrink-0 text-[11px] tabular-nums text-content/45">
-        {memberCount}
-      </span>
-    </div>
-  );
-}
-
 const SESSION_PREFETCH_DELAY_MS = 120;
-/** Rows created this recently slide in; older ones are just being listed. */
-const SESSION_INSERT_WINDOW_MS = 15_000;
 
 type SessionInsertMotion = { cwd: string; seen: Set<string> };
-
-/** List row that grows open when a new session lands, pushing rows below it down. */
-function SessionListItem({
-  session,
-  cwd,
-  motion,
-  children,
-}: {
-  session: SessionSummary;
-  cwd: string;
-  motion: RefObject<SessionInsertMotion>;
-  children: ReactNode;
-}) {
-  const ref = useRef<HTMLLIElement>(null);
-  // Decided once per row: effects can replay (StrictMode, reordering), and a
-  // row that already slid in must not do it again.
-  const played = useRef(false);
-  useLayoutEffect(() => {
-    if (played.current) return;
-    played.current = true;
-    const state = motion.current;
-    const fresh =
-      state.cwd === cwd &&
-      !state.seen.has(session.id) &&
-      (session.createdAt === 0 ||
-        Date.now() - session.createdAt < SESSION_INSERT_WINDOW_MS);
-    state.seen.add(session.id);
-    const el = ref.current;
-    const content = el?.firstElementChild;
-    if (
-      !fresh ||
-      !el ||
-      !(content instanceof HTMLElement) ||
-      typeof el.animate !== "function" ||
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-    )
-      return;
-    // The card takes its place at once; everything below starts where it was
-    // and slides down, uncovering it as it fades in.
-    const offset =
-      el.offsetHeight +
-      (parseFloat(getComputedStyle(el.parentElement ?? el).rowGap) || 0);
-    const timing = {
-      duration: 380,
-      easing: "cubic-bezier(0.32, 0.72, 0, 1)",
-    };
-    for (
-      let node: Element | null = el;
-      node && !node.hasAttribute("data-session-list");
-      node = node.parentElement
-    ) {
-      for (
-        let below = node.nextElementSibling;
-        below;
-        below = below.nextElementSibling
-      ) {
-        if (!(below instanceof HTMLElement)) continue;
-        below.animate(
-          [{ transform: `translateY(${-offset}px)` }, { transform: "none" }],
-          // Stack with a push already in flight instead of restarting it.
-          { ...timing, composite: "add" },
-        );
-      }
-    }
-    content.animate([{ opacity: 0 }, { opacity: 1 }], {
-      duration: 220,
-      easing: "ease-out",
-    });
-  }, []);
-  return <li ref={ref}>{children}</li>;
-}
 
 export const SessionCard = memo(function SessionCard({
   session,
