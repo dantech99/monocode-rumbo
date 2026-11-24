@@ -363,7 +363,7 @@ mod tests {
             title: "PR report".into(),
             body: "# Report".into(),
             tags: Vec::new(),
-            source_session_id: Some("mono-1".into()),
+            source_session_id: Some("session-1".into()),
             source_cwd: Some("/repo".into()),
             finalize_slug: false,
         };
@@ -374,7 +374,7 @@ mod tests {
         assert_eq!(list_artifacts(&conn).unwrap()[0].id, note.id);
         let json = serde_json::to_value(artifact).unwrap();
         assert_eq!(json["kind"], "document");
-        assert_eq!(json["sourceSessionId"], "mono-1");
+        assert_eq!(json["sourceSessionId"], "session-1");
         assert!(json.get("tags").is_none());
         assert!(json.get("slug").is_none());
         assert!(get_artifact(&conn, "missing").unwrap().is_none());
