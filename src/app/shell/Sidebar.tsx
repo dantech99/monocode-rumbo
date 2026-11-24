@@ -200,15 +200,6 @@ import { SourceControl } from "../../features/source-control/ui/SourceControl";
 import { GitHistoryGraph } from "../../features/source-control/ui/GitHistoryGraph";
 import { GithubStarPrompt } from "./GithubStarPrompt";
 import {
-  isMonoSession,
-  monosSnapshot,
-  subscribeMonos,
-} from "../../features/monos/model/mono";
-import { isHabitRun } from "../../features/monos/model/monoHabits";
-import {
-  type MonoRailProps,
-} from "./MonoRailSection";
-import {
   refreshRemoteProjectSessions,
   remoteRequest,
   remotePendingWorktree,
@@ -384,10 +375,6 @@ type Props = {
   updateNotice?: InstalledUpdate | null;
   onOpenWhatsNew?: (version: string) => void;
   onDismissUpdate?: () => void;
-  /** The Monos on the rail; absent while Monos are off. */
-  monos?: MonoRailProps;
-  /** A Mono fills the main area, which has no project sidebar. */
-  monoViewActive?: boolean;
 };
 
 function SidebarComponent({
@@ -476,7 +463,6 @@ function SidebarComponent({
   updateNotice = null,
   onOpenWhatsNew,
   onDismissUpdate,
-  monoViewActive = false,
 }: Props) {
   const trafficLightsVisible = useTrafficLightsVisible();
   const remoteProject = isRemoteProjectPath(cwd);
@@ -726,22 +712,18 @@ function SidebarComponent({
     : pending && sessions.length === 0;
   const worktreeFocus = useWorktreeFocus(cwd);
   const focusedWorktree = remoteProject ? undefined : worktreeFocus;
-  useSyncExternalStore(subscribeMonos, monosSnapshot);
   const listableSessions = mergeFolderSessionSummaries(
     projectSessions,
     remoteProject ? [] : openSessions,
     sessionFolders,
   ).filter(
     (session) =>
-      !isMonoSession(session.id) &&
       !("ephemeral" in session && session.ephemeral) &&
-      !isHabitRun(session.id) &&
       !session.orchestrationLeadId &&
       inWorktreeFocus(session, focusedWorktree),
   );
   // Sessions saved hidden still show when a listed session started them:
-  // /operator launches were once hidden like a Mono's by mistake. A Mono's
-  // chat is never listed, so its hidden launches stay hidden.
+  // /operator launches were once hidden by mistake.
   const shownSessionIds = new Set(
     listableSessions
       .filter((session) => !session.sidebarHidden)
@@ -752,8 +734,8 @@ function SidebarComponent({
       !session.sidebarHidden ||
       !!startedSessionCaller(session.id, shownSessionIds),
   );
-  // projectSessionGroups keeps every row it is given, including hidden Mono
-  // and orchestration launches. Trim those the same way the single-project
+  // projectSessionGroups keeps every row it is given, including hidden
+  // orchestration launches. Trim those the same way the single-project
   // list does, then let the groups apply search and filters.
   const columnSourceRows = remoteProject
     ? [
@@ -762,9 +744,7 @@ function SidebarComponent({
       ]
     : mergeFolderSessionSummaries(sessions, openSessions, sessionFolders);
   const columnStructurallyListable = columnSourceRows.filter((session) => {
-    if (isMonoSession(session.id)) return false;
     if ("ephemeral" in session && session.ephemeral) return false;
-    if (isHabitRun(session.id)) return false;
     if (session.orchestrationLeadId) return false;
     if (
       sameProjectPath(session.cwd, cwd) &&
@@ -933,16 +913,16 @@ function SidebarComponent({
     settingsOpen;
   // Likewise the session they cover stays current but isn't shown selected.
   const highlightedSessionId =
-    otherViewActive || monoViewActive ? undefined : activeListedSessionId;
+    otherViewActive ? undefined : activeListedSessionId;
   // The inset sidebar holds the links to search, inbox and notes,
   // and lets new users open their first project and Settings.
   // It stays available without a project; only settings take its place.
   // The classic action strip stays mounted while Search, Inbox, Notes,
   // or Settings covers the workspace, so the active control
-  // can toggle back. Mono still has no project sidebar.
+  // can toggle back.
   const sidebarAvailable = inset
     ? !settingsOpen
-    : !monoViewActive && inProject;
+    : inProject;
   const sidebarVisible = open && sidebarAvailable;
   // With the sidebar collapsed beside the compact rail, its tab shortcuts
   // open the sidebar temporarily until the user clicks away.

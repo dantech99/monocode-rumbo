@@ -103,18 +103,8 @@ fn delete_artifact(conn: &Connection, id: &str) -> rusqlite::Result<()> {
         "DELETE FROM notes WHERE id = ?1 AND content_kind = 'artifact'",
         [id],
     )?;
-    // Update paginated Mono history and older full-session transcripts in the
-    // same transaction. Reply text and all unrelated metadata stay intact.
-    tx.execute(
-        "UPDATE mono_blocks SET block_json = json_set(block_json, '$.artifactCards',
-           (SELECT json_group_array(json(card.value))
-            FROM json_each(block_json, '$.artifactCards') AS card
-            WHERE json_extract(card.value, '$.id') != ?1))
-         WHERE instr(block_json, '\"artifactCards\"') > 0
-           AND EXISTS (SELECT 1 FROM json_each(block_json, '$.artifactCards') AS card
-                       WHERE json_extract(card.value, '$.id') = ?1)",
-        [id],
-    )?;
+    // Update the stored transcripts in the same transaction. Reply text and
+    // all unrelated metadata stay intact.
     tx.execute(
         "UPDATE sessions SET blocks_json = (
            SELECT json_group_array(json(CASE WHEN json_type(block.value, '$.artifactCards') = 'array'
@@ -444,12 +434,6 @@ mod tests {
         }))
         .unwrap();
         upsert_session(&conn, &session).unwrap();
-        let mono = SessionUpsert {
-            id: "mono".into(),
-            ..session.clone()
-        };
-        upsert_session(&conn, &mono).unwrap();
-        crate::mono_transcript::migrate_transcript(&conn, "mono").unwrap();
         delete_artifact(&conn, "remove").unwrap();
         delete_artifact(&conn, "remove").unwrap();
         delete_artifact(&conn, "personal").unwrap();
@@ -469,8 +453,6 @@ mod tests {
             json!([{ "id": "keep", "kind": "document", "title": "Other" }])
         );
         assert_eq!(blocks[1], session.blocks[1]);
-        let raw: String = conn.query_row("SELECT block_json FROM mono_blocks WHERE session_id = 'mono' AND block_id = 'turn'", [], |row| row.get(0)).unwrap();
-        assert_eq!(serde_json::from_str::<Value>(&raw).unwrap(), blocks[0]);
         // An older client save still contains both references, but the deleted
         // card is filtered before it reaches storage again.
         upsert_session(&conn, &session).unwrap();
@@ -478,7 +460,7 @@ mod tests {
             get_session(&conn, "normal").unwrap().unwrap().blocks,
             blocks
         );
-        let stale = retain_existing_cards(&conn, &mono.blocks).unwrap();
+        let stale = retain_existing_cards(&conn, &session.blocks).unwrap();
         assert_eq!(stale.as_ref(), &blocks);
     }
 }

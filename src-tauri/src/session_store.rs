@@ -531,10 +531,6 @@ pub fn session_delete(
         .map(|record| generated_image_paths(&record.blocks))
         .unwrap_or_default();
     image_paths.extend(persisted_paths);
-    image_paths.extend(
-        crate::mono_transcript::generated_image_paths(&conn, &session_id)
-            .map_err(|e| e.to_string())?,
-    );
     delete_session(&conn, &session_id).map_err(|e| e.to_string())?;
     drop(conn);
     if !image_paths.is_empty() {
@@ -1007,7 +1003,6 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     )?;
     crate::notes::ensure_notes_table(conn)?;
     ensure_orchestration_history(conn)?;
-    crate::mono_transcript::ensure_tables(conn)?;
     Ok(())
 }
 
@@ -1362,10 +1357,7 @@ fn search_sessions_sql(include_archived: bool, cwd_scoped: bool) -> String {
             AND (LOWER(title) LIKE LOWER(?1) ESCAPE '\\'
                  OR CASE WHEN octet_length(blocks_json) <= ?2
                          THEN LOWER(blocks_json) LIKE LOWER(?1) ESCAPE '\\'
-                         ELSE 0 END
-                 OR EXISTS(SELECT 1 FROM mono_blocks
-                           WHERE mono_blocks.session_id = sessions.id
-                             AND search_text LIKE LOWER(?1) ESCAPE '\\'))",
+                         ELSE 0 END)",
     );
     if !include_archived {
         sql.push_str(" AND archived = 0");
@@ -1489,19 +1481,8 @@ fn search_sessions_with_connection(
                 String::from_utf8_lossy(value.as_bytes().map_err(|e| e.to_string())?).into_owned()
             }
         };
-        let blocks = if crate::mono_transcript::is_indexed(conn, &id).map_err(|e| e.to_string())? {
-            crate::mono_transcript::matching_blocks(
-                conn,
-                &id,
-                &needle,
-                MAX_MESSAGE_HITS - messages.len(),
-            )
-            .map_err(|e| e.to_string())?
-        } else {
-            let Ok(blocks) = serde_json::from_str::<Value>(&blocks_raw) else {
-                continue;
-            };
-            blocks
+        let Ok(blocks) = serde_json::from_str::<Value>(&blocks_raw) else {
+            continue;
         };
         for hit in block_hits(&blocks, &needle) {
             messages.push(SessionSearchHit {
@@ -1932,13 +1913,6 @@ pub(crate) fn get_session(
     get_session_record(conn, session_id, true)
 }
 
-pub(crate) fn get_session_metadata(
-    conn: &Connection,
-    session_id: &str,
-) -> rusqlite::Result<Option<SessionRecord>> {
-    get_session_record(conn, session_id, false)
-}
-
 fn get_session_record(
     conn: &Connection,
     session_id: &str,
@@ -2102,28 +2076,6 @@ mod tests {
     use rusqlite::hooks::{AuthAction, Authorization};
     use serde_json::json;
     use std::sync::atomic::AtomicUsize;
-
-    #[test]
-    fn search_keeps_older_mono_messages_available_after_conversion() {
-        let store = SessionStore::open_in_memory().unwrap();
-        let conn = store.lock_conn().unwrap();
-        let mut mono = sample("mono", "/tmp/a", "Mono");
-        mono.blocks = json!([{ "id":"old", "role":"user", "text":"Archived needle" }, { "id":"answer", "role":"assistant", "text":"Done" }]);
-        upsert_session(&conn, &mono).unwrap();
-        crate::mono_transcript::migrate_transcript(&conn, "mono").unwrap();
-        let result = search_sessions(
-            &conn,
-            &SessionSearchOptions {
-                query: "Archived needle".into(),
-                cwd: None,
-                include_archived: false,
-                search_owner: "mono-search".into(),
-            },
-        )
-        .unwrap();
-        assert_eq!(result.hits.len(), 1);
-        assert_eq!(result.hits[0].block_id.as_deref(), Some("old"));
-    }
 
     #[test]
     fn startup_does_not_read_saved_transcripts() {
