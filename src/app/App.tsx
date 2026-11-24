@@ -759,14 +759,6 @@ import type { LinkedSessionUpdate } from "../features/inbox/model/linkedSessionU
 import { markLinkedSessionUpdateSeen } from "../features/inbox/model/linkedSessionSeen";
 import { inboxTrackerDescription } from "../features/inbox/model/inboxContext";
 import {
-  gitlabWorkItemDetails,
-  peekGitlabWorkItemDetails,
-} from "../features/inbox/model/gitlab";
-import {
-  azureDevOpsWorkItemDetails,
-  peekAzureDevOpsWorkItemDetails,
-} from "../features/inbox/model/azureDevOps";
-import {
   loadCloseToTray,
   loadAutosave,
   loadCollapsedProjectRailMode,
@@ -3006,7 +2998,7 @@ function Workspace({
           item.projectPath || active?.cwd || sessionDefaults?.cwd || projectCwd;
         setSidebarTab("sessions", cwd);
         const ref =
-          item.provider === "linear" || item.provider === "jira"
+          item.provider === "linear"
             ? item.identifier?.trim() || `#${item.number}`
             : `#${item.number}`;
         const linkedWorkItem = linkedWorkItemFromInboxItem(item);
@@ -4909,37 +4901,9 @@ function Workspace({
               ? candidate
               : await invoke<string>("default_cwd");
           const description =
-            item.provider === "linear" || item.provider === "jira"
+            item.provider === "linear"
               ? await inboxTrackerDescription(item)
-              : item.provider === "gitlab" &&
-                  (item.kind === "issue" || item.kind === "pr")
-                ? (
-                    peekGitlabWorkItemDetails(
-                      item.repo,
-                      item.kind,
-                      item.number,
-                    ) ??
-                    (await gitlabWorkItemDetails(
-                      item.repo,
-                      item.kind,
-                      item.number,
-                    ))
-                  ).body
-                : item.provider === "azuredevops" &&
-                    (item.kind === "issue" || item.kind === "pr")
-                  ? (
-                      peekAzureDevOpsWorkItemDetails(
-                        item.repo,
-                        item.kind,
-                        item.number,
-                      ) ??
-                      (await azureDevOpsWorkItemDetails(
-                        item.repo,
-                        item.kind,
-                        item.number,
-                      ))
-                    ).body
-                  : undefined;
+              : undefined;
           session = {
             ...newDefaultSession(cwd),
             title: `Ask · ${item.title}`,

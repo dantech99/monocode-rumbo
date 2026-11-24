@@ -56,9 +56,7 @@ it("reports a failed mark-all write in Inbox and clears the error after retry", 
   seedInboxSeenIfNeeded([{ ...entry, updatedAt: "2030-01-14T12:00:00Z" }]);
   saveInboxConnections({
     github: true,
-    gitlab: false,
     linear: false,
-    azuredevops: false,
   });
   saveInboxSource("github");
   listInboxItems.mockResolvedValue({ items: [item], errors: {} });
@@ -97,20 +95,6 @@ it.each([
     "local:/tmp/app",
   ],
   [
-    "gitlab",
-    "issue",
-    "issues",
-    "https://gitlab.example.com/acme/app/-/issues/42",
-    "local:/tmp/app",
-  ],
-  [
-    "gitlab",
-    "pr",
-    "pullRequests",
-    "https://gitlab.example.com/acme/app/-/merge_requests/42",
-    "local:/tmp/app",
-  ],
-  [
     "linear",
     "linear",
     "issues",
@@ -146,9 +130,7 @@ it.each([
     seedInboxSeenIfNeeded([{ ...entry, updatedAt: "2030-01-14T12:00:00Z" }]);
     saveInboxConnections({
       github: true,
-      gitlab: true,
       linear: true,
-      azuredevops: true,
     });
     saveInboxSource(provider);
     listInboxItems.mockResolvedValue({ items: [item], errors: {} });
