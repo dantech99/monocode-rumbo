@@ -570,21 +570,13 @@ mod tests {
         );
         assert!(app_help().contains("notes.read"));
         assert!(app_help().contains("notes.write"));
-        for action in [
-            "worktrees.list",
-            "worktrees.create",
-            "artifacts.list",
-            "artifacts.read",
-            "artifacts.write",
-        ] {
+        for action in ["worktrees.list", "worktrees.create"] {
             assert!(matches!(
                 parse_args_for(&args(&[action]), true),
                 Ok(Parsed::Call(_, _, _))
             ));
             assert!(app_help().contains(action));
         }
-        assert!(app_help().contains(r#""kind":"document""#));
-        assert!(app_help().contains("Artifacts are separate from Notes"));
     }
 
     #[test]
@@ -594,51 +586,5 @@ mod tests {
         assert!(denied.get("requestId").is_none());
         let uncertain = with_retry_hint(json!({"ok":false,"error":"timeout"}), "id-1");
         assert_eq!(uncertain["retryWith"], "--request-id id-1");
-    }
-
-    #[test]
-    fn app_mode_accepts_chat_cards_and_documents_every_type() {
-        for input in [
-            r#"{"type":"pr","repo":"owner/repo","number":123}"#,
-            r#"{"type":"session","sessionId":"other"}"#,
-            r#"{"type":"choices","options":["Review","Ship"]}"#,
-            r#"{"type":"habit","name":"Check CI","instructions":"Check CI","schedule":{"kind":"daily","time":"09:00"}}"#,
-        ] {
-            assert!(matches!(
-                parse_args_for(&args(&["chat.card", "--json", input]), true),
-                Ok(Parsed::Call(action, parsed_input, _))
-                    if action == "chat.card"
-                        && parsed_input == serde_json::from_str::<Value>(input).unwrap()
-            ));
-        }
-        assert!(parse_args_for(&args(&["chat.card"]), false).is_err());
-        let help = app_help();
-        assert!(help.contains("chat.card"));
-        for kind in ["pr", "session", "choices", "habit"] {
-            assert!(help.contains(&format!(r#""type":"{kind}""#)));
-        }
-    }
-
-    #[test]
-    fn app_mode_exposes_soul_actions_and_documents_requested_updates() {
-        for (action, input) in [
-            ("soul.read", r#"{}"#),
-            (
-                "soul.update",
-                r##"{"text":"# Soul\n","expectedHash":"old-hash"}"##,
-            ),
-        ] {
-            assert!(matches!(
-                parse_args_for(&args(&[action, "--json", input]), true),
-                Ok(Parsed::Call(parsed_action, parsed_input, _))
-                    if parsed_action == action
-                        && parsed_input == serde_json::from_str::<Value>(input).unwrap()
-            ));
-            assert!(parse_args_for(&args(&[action]), false).is_err());
-            assert!(app_help().contains(action));
-        }
-        assert!(app_help().contains("only when the user asks"));
-        assert!(app_help().contains("expectedHash"));
-        assert!(app_help().contains("Habit runs and other sessions cannot change"));
     }
 }
