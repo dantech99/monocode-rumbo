@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { createPortal } from "react-dom";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ConnectionsSettings } from "../../connections/ui/ConnectionsSettings";
-import { MobileSettings } from "../../mobile/ui/MobileSettings";
 import { ask } from "@tauri-apps/plugin-dialog";
 import {
   ArrowDownCircle,
@@ -42,7 +41,6 @@ import {
 } from "../../../shared/ui/ColorPickerPopover";
 import { Popover } from "../../../shared/ui/Popover";
 import { SecondaryButton } from "../../../shared/ui/SecondaryButton";
-import { JiraSettings } from "./JiraSettings";
 import { GradientBlurBackground } from "./GradientBlurBackground";
 import { McpSettings } from "./McpSettings";
 import { InboxProviderMark } from "../../inbox/ui/InboxProviderMark";
@@ -289,16 +287,6 @@ import {
   githubStatus,
   type GithubStatus,
 } from "../../inbox/model/githubTasks";
-import {
-  disconnectGitlab,
-  gitlabConnected,
-  saveGitlabConfig,
-} from "../../inbox/model/gitlab";
-import {
-  azureDevOpsConnected,
-  disconnectAzureDevOps,
-  saveAzureDevOpsConfig,
-} from "../../inbox/model/azureDevOps";
 import {
   disconnectLinear,
   LINEAR_CHANGE_EVENT,
@@ -645,10 +633,7 @@ export function SettingsView({
                 <GeneralPage onOpenWhatsNew={onOpenWhatsNew} />
               ) : null}
               {section === "connections" ? (
-                <div className="flex flex-col gap-10">
-                  <ConnectionsSettings />
-                  <MobileSettings />
-                </div>
+                <ConnectionsSettings />
               ) : null}
               {section === "appearance" ? (
                 <AppearancePage appearance={appearance} />
@@ -943,7 +928,7 @@ function GeneralPage({
         <Row
           id="notifications"
           label="Notifications"
-          description="Notify when a reminder is due, or when an agent finishes or needs input in another session or while MonoCode is in the background. Click the notification to open that session."
+          description="Notify when an agent finishes or needs input in another session or while MonoCode is in the background. Click the notification to open that session."
         >
           {notificationsEnabled && notificationPermission === "denied" ? (
             <NotificationsBlocked />
@@ -1318,48 +1303,6 @@ function InboxPage({
       </Group>
 
       <Group
-        id="gitlab"
-        title={
-          <span className="flex items-center gap-2">
-            <InboxProviderMark provider="gitlab" className="size-4 shrink-0" />
-            GitLab
-          </span>
-        }
-        description="Merge requests from GitLab.com or a self-managed instance."
-      >
-        <GitlabSettings />
-      </Group>
-
-      <Group
-        id="azuredevops"
-        title={
-          <span className="flex items-center gap-2">
-            <InboxProviderMark
-              provider="azuredevops"
-              className="size-4 shrink-0"
-            />
-            ADO
-          </span>
-        }
-        description="Pull requests and Boards work items from your ADO organization."
-      >
-        <AzureDevOpsSettings />
-      </Group>
-
-      <Group
-        id="jira"
-        title={
-          <span className="flex items-center gap-2">
-            <InboxProviderMark provider="jira" className="size-4 shrink-0" />
-            Jira
-          </span>
-        }
-        description="Jira Cloud issues from the projects you pick."
-      >
-        <JiraSettings />
-      </Group>
-
-      <Group
         id="linear"
         title={
           <span className="flex items-center gap-2">
@@ -1433,252 +1376,6 @@ function GithubSettings() {
         <SecondaryButton onClick={() => void checkStatus()} disabled={checking}>
           {checking ? "Checking" : "Check again"}
         </SecondaryButton>
-      </Row>
-      {error ? (
-        <p className="border-b border-content/5 px-4 pb-3 text-[12px] text-red-400/90 last:border-b-0">
-          {error}
-        </p>
-      ) : null}
-    </>
-  );
-}
-
-function GitlabSettings() {
-  const [url, setUrl] = useState("https://gitlab.com");
-  const [token, setToken] = useState("");
-  const [connected, setConnected] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void gitlabConnected()
-      .then((status) => {
-        if (cancelled) return;
-        setConnected(status.connected);
-        setUrl(status.url);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled)
-          setError(err instanceof Error ? err.message : String(err));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const onSave = async () => {
-    if (!token.trim() || busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const status = await saveGitlabConfig(url, token);
-      setUrl(status.url);
-      setToken("");
-      setConnected(status.connected);
-      clearInboxCache();
-    } catch (err: unknown) {
-      setConnected(false);
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onDisconnect = async () => {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const status = await disconnectGitlab(url);
-      setConnected(false);
-      setUrl(status.url);
-      clearInboxCache();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <>
-      <Row
-        label="Connection"
-        description="Connect GitLab.com or a self-managed GitLab instance. Use a personal access token with API access; the token is stored locally and Disconnect deletes it."
-      >
-        {connected ? (
-          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-            <span className="max-w-56 truncate text-[12px] text-content/50">
-              {url}
-            </span>
-            <SecondaryButton
-              onClick={() => void onDisconnect()}
-              disabled={busy}
-            >
-              Disconnect
-            </SecondaryButton>
-          </div>
-        ) : (
-          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-            <label className="flex h-7 w-52 max-w-full shrink-0 items-center rounded-md border border-content/10 px-2 focus-within:border-content/20">
-              <input
-                type="url"
-                value={url}
-                onChange={(event) => setUrl(event.target.value)}
-                placeholder="https://gitlab.com"
-                aria-label="GitLab URL"
-                autoComplete="url"
-                spellCheck={false}
-                className="min-w-0 flex-1 bg-transparent text-[12px] text-content outline-none placeholder:text-content/35"
-              />
-            </label>
-            <label className="flex h-7 w-52 max-w-full shrink-0 items-center rounded-md border border-content/10 px-2 focus-within:border-content/20">
-              <input
-                type="password"
-                value={token}
-                onChange={(event) => setToken(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") void onSave();
-                }}
-                placeholder="glpat-…"
-                aria-label="GitLab access token"
-                autoComplete="off"
-                spellCheck={false}
-                className="min-w-0 flex-1 bg-transparent text-[12px] text-content outline-none placeholder:text-content/35"
-              />
-            </label>
-            <SecondaryButton
-              onClick={() => void onSave()}
-              disabled={busy || !token.trim()}
-            >
-              {busy ? "Saving" : "Connect"}
-            </SecondaryButton>
-          </div>
-        )}
-      </Row>
-      {error ? (
-        <p className="border-b border-content/5 px-4 pb-3 text-[12px] text-red-400/90 last:border-b-0">
-          {error}
-        </p>
-      ) : null}
-    </>
-  );
-}
-
-function AzureDevOpsSettings() {
-  const [url, setUrl] = useState("https://dev.azure.com/myorg");
-  const [token, setToken] = useState("");
-  const [connected, setConnected] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void azureDevOpsConnected()
-      .then((status) => {
-        if (cancelled) return;
-        setConnected(status.connected);
-        if (status.url) setUrl(status.url);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled)
-          setError(err instanceof Error ? err.message : String(err));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const onSave = async () => {
-    if (!token.trim() || busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const status = await saveAzureDevOpsConfig(url, token);
-      setUrl(status.url);
-      setToken("");
-      setConnected(status.connected);
-      clearInboxCache();
-    } catch (err: unknown) {
-      setConnected(false);
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onDisconnect = async () => {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const status = await disconnectAzureDevOps(url);
-      setConnected(false);
-      setUrl(status.url || url);
-      clearInboxCache();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <>
-      <Row
-        label="Connection"
-        description="Connect your ADO organization with a personal access token (Boards + Repos read & write for comments). The token is stored locally and Disconnect deletes it."
-      >
-        {connected ? (
-          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-            <span className="max-w-56 truncate text-[12px] text-content/50">
-              {url}
-            </span>
-            <SecondaryButton
-              onClick={() => void onDisconnect()}
-              disabled={busy}
-            >
-              Disconnect
-            </SecondaryButton>
-          </div>
-        ) : (
-          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-            <label className="flex h-7 w-52 max-w-full shrink-0 items-center rounded-md border border-content/10 px-2 focus-within:border-content/20">
-              <input
-                type="url"
-                value={url}
-                onChange={(event) => setUrl(event.target.value)}
-                placeholder="https://dev.azure.com/myorg"
-                aria-label="Azure DevOps organization URL"
-                autoComplete="url"
-                spellCheck={false}
-                className="min-w-0 flex-1 bg-transparent text-[12px] text-content outline-none placeholder:text-content/35"
-              />
-            </label>
-            <label className="flex h-7 w-52 max-w-full shrink-0 items-center rounded-md border border-content/10 px-2 focus-within:border-content/20">
-              <input
-                type="password"
-                value={token}
-                onChange={(event) => setToken(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") void onSave();
-                }}
-                placeholder="PAT…"
-                aria-label="Azure DevOps personal access token"
-                autoComplete="off"
-                spellCheck={false}
-                className="min-w-0 flex-1 bg-transparent text-[12px] text-content outline-none placeholder:text-content/35"
-              />
-            </label>
-            <SecondaryButton
-              onClick={() => void onSave()}
-              disabled={busy || !token.trim()}
-            >
-              {busy ? "Saving" : "Connect"}
-            </SecondaryButton>
-          </div>
-        )}
       </Row>
       {error ? (
         <p className="border-b border-content/5 px-4 pb-3 text-[12px] text-red-400/90 last:border-b-0">

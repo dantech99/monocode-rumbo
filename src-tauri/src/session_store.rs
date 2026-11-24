@@ -8,7 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 
 const MIGRATION_V1: &str = r#"
 CREATE TABLE IF NOT EXISTS sessions (
@@ -542,7 +542,6 @@ pub fn session_delete(
             eprintln!("Generated image cleanup will need a retry: {error}");
         }
     }
-    let _ = app.emit(crate::reminders::CHANGED, ());
     Ok(())
 }
 
@@ -1007,8 +1006,6 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
                         is_draft, automation_id, sidebar_hidden);",
     )?;
     crate::notes::ensure_notes_table(conn)?;
-    crate::reminders::ensure_table(conn)?;
-    crate::automations::ensure_tables(conn)?;
     ensure_orchestration_history(conn)?;
     crate::mono_transcript::ensure_tables(conn)?;
     Ok(())

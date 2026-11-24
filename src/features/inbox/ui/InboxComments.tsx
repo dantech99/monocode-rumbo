@@ -152,16 +152,7 @@ export function InboxComments({
   );
   const label = count === 1 ? "1 comment" : `${count} comments`;
   const commitLabel = commitCount === 1 ? "1 commit" : `${commitCount} commits`;
-  const moreOn =
-    provider === "linear"
-      ? "Linear"
-      : provider === "jira"
-        ? "Jira"
-        : provider === "gitlab"
-          ? "GitLab"
-          : provider === "azuredevops"
-            ? "ADO"
-            : "GitHub";
+  const moreOn = provider === "linear" ? "Linear" : "GitHub";
 
   return (
     <section className="flex flex-col gap-3 border-t border-stroke pt-5">
@@ -402,15 +393,7 @@ function InboxComment({
               <button
                 type="button"
                 title={
-                  provider === "linear"
-                    ? "Open in Linear"
-                    : provider === "jira"
-                      ? "Open in Jira"
-                      : provider === "gitlab"
-                        ? "Open on GitLab"
-                        : provider === "azuredevops"
-                          ? "Open on ADO"
-                          : "Open on GitHub"
+                  provider === "linear" ? "Open in Linear" : "Open on GitHub"
                 }
                 onClick={() => void openUrl(comment.url)}
                 className="hover:text-content"

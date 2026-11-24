@@ -31,7 +31,6 @@ import {
   Plus,
   Search,
   Share,
-  Zap,
 } from "../../shared/ui/icons";
 import { createPortal } from "react-dom";
 import { useProjectSwipe } from "./useProjectSwipe";
@@ -104,12 +103,10 @@ import {
   dissolveFolder,
   folderContaining,
   loadPinnedSessionsCollapsed,
-  loadReminderSessionsCollapsed,
   loadSessionFolders,
   mergeFolderSessionSummaries,
   pruneSessionFolders,
   removeSessionFromFolder,
-  saveReminderSessionsCollapsed,
   saveSessionFolders,
   sessionListNavigationIds,
   setFolderCollapsed,
@@ -198,12 +195,6 @@ import { useRailTooltip } from "./RailTooltip";
 import { useProjectMenu } from "./useProjectMenu";
 import { SessionFiltersMenu } from "../../features/sessions/ui/SessionFiltersMenu";
 import { LinkSessionWorkItemDialog } from "../../features/sessions/ui/LinkSessionWorkItemDialog";
-import { sessionReminderPresets } from "../../features/sessions/ui/sessionReminderPresets";
-import {
-  formatReminderTime,
-  reminderTime,
-  type SessionReminder,
-} from "../../features/sessions/model/sessionReminders";
 import { SidebarUpdateFooter } from "./SidebarUpdate";
 import { SourceControl } from "../../features/source-control/ui/SourceControl";
 import { GitHistoryGraph } from "../../features/source-control/ui/GitHistoryGraph";
@@ -319,9 +310,6 @@ type Props = {
     sessionId: string,
     item: LinkedWorkItem | undefined,
   ) => void;
-  reminders?: readonly SessionReminder[];
-  onSetReminders?: (sessionIds: readonly string[], dueAt: number) => void;
-  onCancelReminders?: (sessionIds: readonly string[]) => void;
   onDeleteSession?: (sessionId: string) => void;
   onDeleteSessions?: (sessionIds: readonly string[]) => void;
   onOpenFile: OpenFileFn;
@@ -358,12 +346,10 @@ type Props = {
   onOpenInbox?: () => void;
   onOpenInboxItem?: (item: LinkedWorkItem, sessionId: string) => void;
   onOpenNotes?: () => void;
-  onOpenAutomations?: () => void;
   onGoToFile?: () => void;
   searchActive?: boolean;
   inboxActive?: boolean;
   notesActive?: boolean;
-  automationsActive?: boolean;
   notesEnabled?: boolean;
   onToggleProjectRail?: () => void;
   projectRailOpen?: boolean;
@@ -435,9 +421,6 @@ function SidebarComponent({
   onPinSession: onPinLocalSession,
   onPinSessions: onPinLocalSessions,
   onSetSessionLinkedWorkItem: onSetLocalSessionLinkedWorkItem,
-  reminders = [],
-  onSetReminders,
-  onCancelReminders,
   onDeleteSession: onDeleteLocalSession,
   onDeleteSessions: onDeleteLocalSessions,
   onOpenFile,
@@ -473,12 +456,10 @@ function SidebarComponent({
   onOpenInbox,
   onOpenInboxItem,
   onOpenNotes,
-  onOpenAutomations,
   onGoToFile,
   searchActive = false,
   inboxActive = false,
   notesActive = false,
-  automationsActive = false,
   notesEnabled = true,
   onToggleProjectRail,
   projectRailOpen = true,
@@ -707,9 +688,6 @@ function SidebarComponent({
   const [pinnedSessionsCollapsed, setPinnedSessionsCollapsed] = useState(() =>
     loadPinnedSessionsCollapsed(cwd),
   );
-  const [reminderSessionsCollapsed, setReminderSessionsCollapsed] = useState(
-    () => loadReminderSessionsCollapsed(cwd),
-  );
   const [sessionDrop, setSessionDrop] = useState<SessionListDropTarget | null>(
     null,
   );
@@ -856,17 +834,10 @@ function SidebarComponent({
   // Summaries for the whole project stay in `sessions` so filters still work.
   // Folders sit above the ungrouped list. Only a page of ungrouped cards
   // mounts; the sentinel below asks for the next page.
-  const reminderIds = new Set(reminders.map((reminder) => reminder.sessionId));
-  const reminderGroup = {
-    sessionIds: [...reminders]
-      .sort((a, b) => a.dueAt - b.dueAt)
-      .map((reminder) => reminder.sessionId),
-    collapsed: reminderSessionsCollapsed,
-  };
   const ungroupedVisible = ungroupedSessions(
     listedVisibleSessions,
     sessionFolders,
-  ).filter((session) => !reminderIds.has(session.id));
+  );
   const activeUngroupedIndex = ungroupedVisible.findIndex(
     (session) => session.id === activeListedSessionId,
   );
@@ -881,14 +852,12 @@ function SidebarComponent({
     sessionFolders,
     ungroupedVisible,
     pinnedSessionsCollapsed,
-    reminderGroup,
   );
   const sessionListEntries = buildSessionList(
     listedVisibleSessions,
     sessionFolders,
     shownUngrouped,
     pinnedSessionsCollapsed,
-    reminderGroup,
   );
   // The inset list heads its loose sessions by when they were last active,
   // the order they are sorted in, so each label starts one unbroken run.
@@ -961,16 +930,15 @@ function SidebarComponent({
     searchActive ||
     inboxActive ||
     notesActive ||
-    automationsActive ||
     settingsOpen;
   // Likewise the session they cover stays current but isn't shown selected.
   const highlightedSessionId =
     otherViewActive || monoViewActive ? undefined : activeListedSessionId;
-  // The inset sidebar holds the links to search, inbox, notes and
-  // automations, and lets new users open their first project and Settings.
+  // The inset sidebar holds the links to search, inbox and notes,
+  // and lets new users open their first project and Settings.
   // It stays available without a project; only settings take its place.
   // The classic action strip stays mounted while Search, Inbox, Notes,
-  // Automations, or Settings covers the workspace, so the active control
+  // or Settings covers the workspace, so the active control
   // can toggle back. Mono still has no project sidebar.
   const sidebarAvailable = inset
     ? !settingsOpen
@@ -1266,7 +1234,6 @@ function SidebarComponent({
   useEffect(() => {
     setSessionFolders(loadSessionFolders(cwd));
     setPinnedSessionsCollapsed(loadPinnedSessionsCollapsed(cwd));
-    setReminderSessionsCollapsed(loadReminderSessionsCollapsed(cwd));
     setRenamingFolderId(null);
     setFolderMenu(null);
     setSessionDrop(null);
@@ -1412,13 +1379,6 @@ function SidebarComponent({
     return session ? [session] : [];
   });
   const multipleMenuSessions = menuSessionIds.length > 1;
-  const menuReminderTimes = [
-    ...new Set(
-      reminders
-        .filter((reminder) => menuSessionIds.includes(reminder.sessionId))
-        .map((reminder) => reminder.dueAt),
-    ),
-  ];
   const allMenuSessionsPinned =
     menuSessions.length > 0 && menuSessions.every((session) => session.pinned);
   const allMenuSessionsArchived =
@@ -1443,20 +1403,6 @@ function SidebarComponent({
     { kind: "item", id: "ungroup", label: "Ungroup" },
   ];
   const sessionMenuItems: ExplorerMenuItem[] = [
-    ...(onCancelReminders && menuReminderTimes.length > 0
-      ? [
-          {
-            kind: "item" as const,
-            id: "reminder:cancel",
-            label: "Cancel reminder",
-            description:
-              menuReminderTimes.length === 1
-                ? formatReminderTime(menuReminderTimes[0])
-                : "Multiple reminder times",
-          },
-          { kind: "sep" as const },
-        ]
-      : []),
     ...(onPinSession || onPinSessions
       ? [
           {
@@ -1509,14 +1455,6 @@ function SidebarComponent({
           },
         ]
       : []),
-    {
-      kind: "item",
-      id: "reminder",
-      label: "Remind me",
-      disabled: !onSetReminders,
-      submenu: sessionReminderPresets(),
-    },
-    { kind: "sep" as const },
     { kind: "item" as const, id: "folder-new", label: "New folder" },
     ...(sessionFolders.length > 0 ? [{ kind: "sep" as const }] : []),
     ...sessionFolders.map((folder) => ({
@@ -1601,19 +1539,6 @@ function SidebarComponent({
     const archived = allMenuSessionsArchived;
     const pinned = allMenuSessionsPinned;
     closeSessionMenu();
-    if (id === "reminder:cancel") {
-      onCancelReminders?.(sessionIds);
-      return;
-    }
-    if (id.startsWith("reminder:")) {
-      const dueAt = reminderTime(id);
-      if (dueAt != null) {
-        setReminderSessionsCollapsed(false);
-        saveReminderSessionsCollapsed(cwd, false);
-        onSetReminders?.(sessionIds, dueAt);
-      }
-      return;
-    }
     if (id === "pin") {
       if (sessionIds.length > 1 && onPinSessions) {
         onPinSessions(sessionIds, !pinned);
@@ -1898,9 +1823,7 @@ function SidebarComponent({
         onPlaceOnPane={
           onPlaceSessionOnPane ? cardActions.placeOnPane : undefined
         }
-        onListDrop={
-          reminderIds.has(session.id) ? undefined : cardActions.listDrop
-        }
+        onListDrop={cardActions.listDrop}
         onListDropTargetChange={setSessionDrop}
         onContextMenu={cardActions.contextMenu}
         onArchive={onArchiveSession ? cardActions.archive : undefined}
@@ -2532,7 +2455,6 @@ function SidebarComponent({
             searchActive={searchActive}
             inboxActive={inboxActive}
             notesActive={notesActive}
-            automationsActive={automationsActive}
             inboxUnseen={inboxUnseen}
             onSearch={
               searchActive && onGoBack ? onGoBack : (onSearch ?? (() => {}))
@@ -2554,11 +2476,6 @@ function SidebarComponent({
                   ? onGoBack
                   : onOpenNotes
                 : undefined
-            }
-            onOpenAutomations={
-              automationsActive && onGoBack
-                ? onGoBack
-                : (onOpenAutomations ?? (() => {}))
             }
             onOpenProject={onOpenProject ?? (() => {})}
             onOpenSettings={
@@ -3200,7 +3117,6 @@ function sessionListDropFromPoint(
 ): SessionListDropTarget | null {
   const el = document.elementFromPoint(x, y);
   if (!el) return null;
-  if (el.closest("[data-reminder-sessions]")) return null;
   const card = el.closest("[data-session-card]") as HTMLElement | null;
   const cardId = card?.dataset.sessionCard;
   if (cardId === draggedId) return null;
@@ -3799,17 +3715,6 @@ export const SessionCard = memo(function SessionCard({
                   {linkedUpdateDot}
                   {workItemBadge}
                   {modeBadge}
-                  {session.automationId ? (
-                    <span
-                      data-automation-icon
-                      role="img"
-                      title="Started by an automation"
-                      aria-label="Started by an automation"
-                      className="grid size-4 shrink-0 place-items-center text-amber-400"
-                    >
-                      <Zap className="size-3" strokeWidth={1.75} />
-                    </span>
-                  ) : null}
                   {onArchive ? (
                     <button
                       type="button"
@@ -3971,17 +3876,6 @@ export const SessionCard = memo(function SessionCard({
                   </button>
                 ) : null}
                 {workItemBadge}
-                {session.automationId ? (
-                  <span
-                    data-automation-icon
-                    role="img"
-                    title="Started by an automation"
-                    aria-label="Started by an automation"
-                    className="grid size-5 -mr-1 shrink-0 place-items-center text-amber-400"
-                  >
-                    <Zap className="size-3" strokeWidth={1.75} />
-                  </span>
-                ) : null}
                 {orchestration ? (
                   <div
                     ref={orchestrationTooltipRootRef}

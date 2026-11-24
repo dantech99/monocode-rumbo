@@ -3,7 +3,6 @@ import { act, createElement, StrictMode, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { formatSessionTitle } from "../../features/sessions/model/session";
-import { formatReminderTime } from "../../features/sessions/model/sessionReminders";
 import { Sidebar } from "./Sidebar";
 import { saveProjectRailOrder } from "../../features/projects/model/recents";
 import {
@@ -571,7 +570,6 @@ describe.each([false, true])("Mono rail selection (compact: %s)", (compact) => {
   it.each([
     ["Inbox", "inboxActive", "onOpenInbox"],
     ["Notes", "notesActive", "onOpenNotes"],
-    ["Automations", "automationsActive", "onOpenAutomations"],
     ["Search", "searchActive", "onSearch"],
   ] as const)("selects only %s without a mono rail", async (label, active, open) => {
     const mono = createMono();
@@ -625,7 +623,6 @@ describe.each([false, true])("Mono rail selection (compact: %s)", (compact) => {
 it.each([
   "inboxActive",
   "notesActive",
-  "automationsActive",
   "searchActive",
 ] as const)("does not show the covered inset session selected while %s", async (active) => {
   const selected = () =>
@@ -1538,22 +1535,6 @@ describe("sidebar orchestration card", () => {
   });
 });
 
-describe("sidebar automation card", () => {
-  it("shows a bolt on sessions started by an automation", () => {
-    props.busySessionIds = new Set();
-    props.sessions[0].automationId = "automation-1";
-    act(() => render());
-    const icon = card().querySelector("[data-automation-icon]");
-    expect(icon).not.toBeNull();
-    expect(icon?.tagName).toBe("SPAN");
-    expect(icon?.getAttribute("aria-label")).toBe("Started by an automation");
-    expect(card().querySelector("[data-orchestration-icon]")).toBeNull();
-    expect(
-      card().querySelector("[data-session-select] [data-automation-icon]"),
-    ).toBeNull();
-  });
-});
-
 describe("sidebar linked work item updates", () => {
   it("opens a linked item beside the session that owns it", () => {
     props.busySessionIds = new Set();
@@ -1736,89 +1717,6 @@ describe("sidebar session GitHub links", () => {
   });
 });
 
-describe("sidebar session reminders", () => {
-  function openReminderMenu() {
-    act(() =>
-      card().dispatchEvent(
-        new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
-      ),
-    );
-    const trigger = Array.from(
-      document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'),
-    ).find((item) => item.textContent === "Remind me")!;
-    act(() =>
-      trigger.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })),
-    );
-    return document.querySelector<HTMLElement>(
-      '[role="menu"][aria-label="Remind me"]',
-    )!;
-  }
-
-  it("schedules the selected session from the hover submenu", () => {
-    props.onSetReminders = vi.fn();
-    act(() => render());
-    const submenu = openReminderMenu();
-    const preset = Array.from(
-      submenu.querySelectorAll<HTMLButtonElement>("button"),
-    ).find((item) => item.textContent?.startsWith("In 3 hours"))!;
-    const before = Date.now();
-    act(() => preset.click());
-    const [ids, dueAt] = vi.mocked(props.onSetReminders).mock.calls[0];
-    expect(ids).toEqual(["session-1"]);
-    expect(dueAt).toBeGreaterThanOrEqual(before + 3 * 60 * 60 * 1000);
-    expect(dueAt).toBeLessThanOrEqual(Date.now() + 3 * 60 * 60 * 1000);
-    expect(document.querySelector('[role="menu"]')).toBeNull();
-  });
-
-  it("groups reminders first without a card clock and offers cancellation first", () => {
-    props.onSetReminders = vi.fn();
-    props.onCancelReminders = vi.fn();
-    props.reminders = [
-      {
-        sessionId: "session-1",
-        dueAt: Date.now() + 3600_000,
-        firedAt: null,
-        title: "Original conversation",
-        harness: "codex",
-        cwd: props.cwd,
-      },
-    ];
-    props.sessions = [
-      { ...props.sessions[0], pinned: true },
-      { ...props.sessions[0], id: "session-2", pinned: true },
-    ];
-    act(() => render());
-    expect(container.querySelector("[data-reminder-sessions]")).toBeNull();
-    expect(container.querySelector('[data-session-card="session-1"]')).toBe(card());
-    expect(
-      container.querySelectorAll('[data-session-card="session-1"]'),
-    ).toHaveLength(1);
-    expect(container.querySelector('[data-session-card="session-2"]')).not.toBeNull();
-    expect(card().querySelector('[aria-label^="Reminder:"]')).toBeNull();
-    act(() =>
-      card().dispatchEvent(
-        new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
-      ),
-    );
-    const cancel = document.querySelector<HTMLButtonElement>(
-      '[aria-label="Session actions"] [role="menuitem"]',
-    )!;
-    expect(cancel.textContent).toBe(
-      `Cancel reminder${formatReminderTime(props.reminders[0].dueAt)}`,
-    );
-    act(() => cancel.click());
-    expect(props.onCancelReminders).toHaveBeenCalledExactlyOnceWith([
-      "session-1",
-    ]);
-    expect(props.onSetReminders).not.toHaveBeenCalled();
-    props.reminders = [];
-    act(() => render());
-    expect(container.querySelector("[data-reminder-sessions]")).toBeNull();
-    expect(container.querySelector('[data-session-card="session-1"]')).toBe(card());
-    expect(container.querySelector('[data-session-card="session-2"]')).not.toBeNull();
-  });
-});
-
 describe("collapsed rail Inbox actions", () => {
   it("restores the hidden rail layout when compact mode is disabled", async () => {
     props.projectRailOpen = false;
@@ -1829,7 +1727,6 @@ describe("collapsed rail Inbox actions", () => {
     props.onSearch = vi.fn();
     props.onOpenInbox = vi.fn();
     props.onOpenNotes = vi.fn();
-    props.onOpenAutomations = vi.fn();
     props.onOpenSettings = vi.fn();
     props.onToggleProjectRail = vi.fn();
     await act(async () => render());
@@ -1869,7 +1766,6 @@ describe("collapsed rail Inbox actions", () => {
     props.onSearch = vi.fn();
     props.onOpenInbox = vi.fn();
     props.onOpenNotes = vi.fn();
-    props.onOpenAutomations = vi.fn();
     props.onOpenSettings = vi.fn();
     props.onToggleProjectRail = vi.fn();
     props.onTabChange = vi.fn();
@@ -1879,7 +1775,7 @@ describe("collapsed rail Inbox actions", () => {
     expect(container.querySelector('nav[aria-label="Projects"]')).toBeNull();
     expect(container.querySelector('nav[aria-label="Spaces"]')).not.toBeNull();
     expect(card()).not.toBeNull();
-    for (const label of ["Search", "Inbox", "Notes", "Automations", "Settings"]) {
+    for (const label of ["Search", "Inbox", "Notes", "Settings"]) {
       expect(container.querySelector(`button[aria-label="${label}"]`)).not.toBeNull();
     }
     const workspaceTabs = container.querySelector<HTMLElement>(

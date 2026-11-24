@@ -28,9 +28,6 @@ test("app tabs retain their state and keep usage and resource pressure in the fo
       if (
         [
           "notes_list",
-          "automations_list",
-          "automation_runs_list",
-          "automation_runs_recover",
         ].includes(command)
       ) {
         return Promise.resolve([]);
@@ -46,7 +43,7 @@ test("app tabs retain their state and keep usage and resource pressure in the fo
     page.locator(`[data-title-tab-id="app-view:${view}"] [data-title-tab]`);
   const footer = page.getByRole("contentinfo", { name: "Provider usage" });
 
-  for (const view of ["inbox", "search", "notes", "automations"]) {
+  for (const view of ["inbox", "search", "notes"]) {
     await nav
       .getByRole("button", { name: new RegExp(`^${view}`, "i") })
       .click();
@@ -58,19 +55,12 @@ test("app tabs retain their state and keep usage and resource pressure in the fo
     await expect(footer).toBeVisible();
   }
 
-  await page
-    .getByPlaceholder("Filter automations")
-    .fill("saved automation filter");
   await appTab("notes").click();
   await page.getByPlaceholder("Filter notes").fill("saved notes filter");
   await appTab("search").click();
   await page
     .getByRole("textbox", { name: "Search", exact: true })
     .fill("saved search query");
-  await appTab("automations").click();
-  await expect(page.getByPlaceholder("Filter automations")).toHaveValue(
-    "saved automation filter",
-  );
   await appTab("notes").click();
   await expect(page.getByPlaceholder("Filter notes")).toHaveValue(
     "saved notes filter",
@@ -85,7 +75,7 @@ test("app tabs retain their state and keep usage and resource pressure in the fo
   await expect(
     footer.getByRole("button", { name: "High resource usage", exact: true }),
   ).toBeVisible({ timeout: 15_000 });
-  for (const view of ["inbox", "notes", "automations", "search"]) {
+  for (const view of ["inbox", "notes", "search"]) {
     await appTab(view).click();
     await expect(
       footer.getByRole("button", { name: "High resource usage", exact: true }),
@@ -128,7 +118,7 @@ test("closing a tab selects its neighbor across app and session tabs", async ({
   const nav = page.getByRole("navigation", { name: "Views" });
   const tab = (id: string) =>
     page.locator(`[data-title-tab-id="${id}"] [data-title-tab]`);
-  for (const view of ["inbox", "search", "notes", "automations"]) {
+  for (const view of ["inbox", "search", "notes"]) {
     await nav
       .getByRole("button", { name: new RegExp(`^${view}`, "i") })
       .click();
@@ -147,16 +137,11 @@ test("closing a tab selects its neighbor across app and session tabs", async ({
   };
   await tab("app-view:notes").click();
   await closeWithShortcut();
-  await expect(tab("app-view:automations")).toHaveAttribute(
-    "data-title-tab-active",
-    "true",
-  );
-  await expect(tab("app-view:notes")).toHaveCount(0);
-  await closeWithShortcut();
   await expect(tab("app-view:search")).toHaveAttribute(
     "data-title-tab-active",
     "true",
   );
+  await expect(tab("app-view:notes")).toHaveCount(0);
 
   // Closing an inactive app tab must leave Search selected.
   await page
@@ -281,7 +266,7 @@ test("sidebar session selection switches away from app tabs", async ({
   const sessionPane = page.locator('[data-session-drop="workspace-session-1"]');
 
   // Both selecting an existing tab and reopening a closed tab must reveal it.
-  for (const view of ["inbox", "search", "notes", "automations"]) {
+  for (const view of ["inbox", "search", "notes"]) {
     await nav
       .getByRole("button", { name: new RegExp(`^${view}`, "i") })
       .click();

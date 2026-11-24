@@ -67,9 +67,6 @@ export type InboxSourceConnections = Record<
 export const INBOX_SOURCE_LABELS: Record<InboxSource, string> = {
   github: "GitHub",
   linear: "Linear",
-  jira: "Jira",
-  gitlab: "GitLab",
-  azuredevops: "ADO",
 };
 
 export function visibleInboxSources(
@@ -78,9 +75,6 @@ export function visibleInboxSources(
   const sources: InboxSource[] = [];
   if (connections.github !== false) sources.push("github");
   if (connections.linear !== false) sources.push("linear");
-  if (connections.jira !== false) sources.push("jira");
-  if (connections.gitlab !== false) sources.push("gitlab");
-  if (connections.azuredevops !== false) sources.push("azuredevops");
   return sources;
 }
 
@@ -90,15 +84,12 @@ export function connectableInboxSources(
   const sources: ConnectableInboxSource[] = [];
   if (connections.github === false) sources.push("github");
   if (connections.linear === false) sources.push("linear");
-  if (connections.jira === false) sources.push("jira");
-  if (connections.gitlab === false) sources.push("gitlab");
-  if (connections.azuredevops === false) sources.push("azuredevops");
   return sources;
 }
 
 /** Account-wide issue trackers: no local repos, no PRs, no draft/merged states. */
 export function isTrackerSource(source?: InboxSource): boolean {
-  return source === "linear" || source === "jira";
+  return source === "linear";
 }
 
 export function resolveInboxSource(
@@ -116,20 +107,12 @@ const CONNECTIONS_KEY = "monocode.inboxConnections";
 const UNKNOWN_CONNECTIONS: InboxSourceConnections = {
   github: null,
   linear: null,
-  jira: null,
-  gitlab: null,
-  azuredevops: null,
 };
 
 export function loadInboxSource(): InboxSource {
   try {
     const raw = localStorage.getItem(SOURCE_KEY);
-    return raw === "linear" ||
-      raw === "jira" ||
-      raw === "gitlab" ||
-      raw === "azuredevops"
-      ? raw
-      : "github";
+    return raw === "linear" ? raw : "github";
   } catch {
     return "github";
   }
@@ -160,9 +143,6 @@ export function loadInboxConnections(): InboxSourceConnections {
     return {
       github: connectFlag(record.github),
       linear: connectFlag(record.linear),
-      jira: connectFlag(record.jira),
-      gitlab: connectFlag(record.gitlab),
-      azuredevops: connectFlag(record.azuredevops),
     };
   } catch {
     return UNKNOWN_CONNECTIONS;
@@ -238,8 +218,6 @@ export function hasActiveInboxFilters(
   source?: InboxSource,
   /** Teams live outside InboxFilters — they narrow the fetch and are shared with Settings. */
   hiddenLinearTeamIds: readonly string[] = [],
-  /** Same for Jira projects. */
-  hiddenJiraProjectIds: readonly string[] = [],
 ): boolean {
   const statusActive = isTrackerSource(source)
     ? filters.status.open || filters.status.closed
@@ -250,10 +228,9 @@ export function hasActiveInboxFilters(
   return (
     filters.assignedToMe ||
     (source === "linear" && hiddenLinearTeamIds.length > 0) ||
-    (source === "jira" && hiddenJiraProjectIds.length > 0) ||
     (source === "linear"
       ? filters.hiddenLinearProjects.length > 0
-      : source !== "jira" && filters.hiddenProjects.length > 0) ||
+      : filters.hiddenProjects.length > 0) ||
     (isTrackerSource(source) ? false : filters.hiddenKinds.length > 0) ||
     filters.time !== "all" ||
     statusActive
@@ -374,11 +351,7 @@ export function applyInboxFilters(
   source?: InboxSource,
 ): InboxItem[] {
   const scoped = source ? filterInboxByProvider(items, source) : [...items];
-  const hiddenProjects =
-    isTrackerSource(source) ||
-    ((source === "gitlab" || source === "azuredevops") && filters.assignedToMe)
-      ? []
-      : filters.hiddenProjects;
+  const hiddenProjects = isTrackerSource(source) ? [] : filters.hiddenProjects;
   const hiddenKinds = isTrackerSource(source) ? [] : filters.hiddenKinds;
   return filterInboxItems(
     filterInboxByStatus(

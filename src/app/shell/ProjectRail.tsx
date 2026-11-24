@@ -12,7 +12,6 @@ import {
   Plus,
   Search,
   Settings,
-  Zap,
 } from "../../shared/ui/icons";
 import {
   useEffect,
@@ -126,8 +125,6 @@ type Props = {
   notesEnabled?: boolean;
   onOpenNotes?: () => void;
   notesActive?: boolean;
-  onOpenAutomations?: () => void;
-  automationsActive?: boolean;
   onTogglePanel?: () => void;
   onSelectProject: (path: string) => void;
   onOpenProject: () => void;
@@ -167,8 +164,6 @@ export function ProjectRail({
   notesEnabled = true,
   onOpenNotes,
   notesActive = false,
-  onOpenAutomations,
-  automationsActive = false,
   onTogglePanel,
   onSelectProject,
   onOpenProject,
@@ -364,7 +359,6 @@ export function ProjectRail({
     searchActive ||
     inboxActive ||
     notesActive ||
-    automationsActive ||
     !!monos?.activeId;
   const pinnedIds = sections.pinned.map((item) => item.path);
   const projectIds = groupedProjectSections.ungrouped.map((item) => item.path);
@@ -443,13 +437,6 @@ export function ProjectRail({
                 ariaLabel="Notes"
               />
             ) : null}
-            <RailAction
-              label="Automations"
-              icon={Zap}
-              onClick={onOpenAutomations}
-              active={automationsActive}
-              ariaLabel="Automations"
-            />
           </div>
 
           <div

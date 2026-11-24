@@ -1,15 +1,4 @@
-import { recoverMobileUsage } from "../features/mobile/model/mobileUsageLimit";
 import { sessionConversationPage } from "../features/agent-app/model/sessionConversation";
-import { useMobileWorkspace } from "../features/mobile/hooks/useMobileWorkspace";
-import { hasMobileAttachments, mobileAttachments } from "../features/mobile/model/mobileAttachments";
-import {
-  applyMobileChoice,
-  mobileWorkspaceChoice,
-  mobileChoice,
-  mobileNewSession,
-  mobileProjectId,
-  mobileQuestionReply,
-} from "../features/mobile/model/mobileWorkspace";
 import { readMonoConversation } from "../features/monos/model/monoConversation";
 import {
   resumeMonoUsageLimit,
@@ -460,7 +449,6 @@ import {
   forgetProject,
   lastProjectPath,
   loadRecents,
-  loadPinnedProjects,
   isLocalProject,
   isRemoteProjectPath,
   looksLikeProject,
@@ -579,8 +567,6 @@ import {
 import { syncDockBadge } from "../features/notifications/model/dockBadge";
 import { liveAgentsFromSessions } from "../features/sessions/model/liveAgents";
 import { hiddenApprovalNotices } from "../features/notifications/model/approvalToast";
-import { useSessionReminders } from "../features/notifications/hooks/useSessionReminders";
-import { ReminderNotices } from "../features/sessions/ui/ReminderNotices";
 import { useUnseenFinishedSessions } from "../features/sessions/hooks/useUnseenFinishedSessions";
 import { useUnseenReplyCounts } from "../features/sessions/hooks/useUnseenReplyCounts";
 import {
@@ -697,17 +683,8 @@ import {
   ARTIFACT_DELETED_EVENT,
 } from "../features/artifacts/artifacts";
 import type { MonoChangesRequest } from "../features/monos/ui/MonoChangesView";
-import {
-  claimDueAutomations,
-  listAutomations,
-  recoverAutomationRuns,
-  updateAutomationRun,
-  type Automation,
-  type AutomationRun,
-} from "../features/automations/model/automations";
 import { useQuickComposerLaunches } from "../features/quick-composer/hooks/useQuickComposerLaunches";
 import type { QuickLaunch } from "../features/quick-composer/model/quickComposer";
-import { claimInboxAutomationRuns } from "../features/automations/model/automationEvents";
 import {
   SECOND_OPINION_TITLE,
   buildSecondOpinionRequest,
@@ -757,7 +734,6 @@ import {
   type InboxItem,
 } from "../features/inbox/model/githubTasks";
 import {
-  linkedWorkItemFromAutomationEvent,
   linkedWorkItemFromInboxItem,
   resolveLinkedWorkItem,
 } from "../features/sessions/model/sessionWorkItem";
@@ -770,14 +746,6 @@ import {
 import type { LinkedSessionUpdate } from "../features/inbox/model/linkedSessionUpdates";
 import { markLinkedSessionUpdateSeen } from "../features/inbox/model/linkedSessionSeen";
 import { inboxTrackerDescription } from "../features/inbox/model/inboxContext";
-import {
-  gitlabWorkItemDetails,
-  peekGitlabWorkItemDetails,
-} from "../features/inbox/model/gitlab";
-import {
-  azureDevOpsWorkItemDetails,
-  peekAzureDevOpsWorkItemDetails,
-} from "../features/inbox/model/azureDevOps";
 import {
   loadCloseToTray,
   loadAutosave,
@@ -881,13 +849,6 @@ const NotesView = lazySurface(
   async () => {
     const module = await import("../features/notes/ui/NotesView");
     return { default: module.NotesView };
-  },
-  { suspense: false },
-);
-const AutomationsView = lazySurface(
-  async () => {
-    const module = await import("../features/automations/ui/AutomationsView");
-    return { default: module.AutomationsView };
   },
   { suspense: false },
 );
@@ -1312,7 +1273,6 @@ function Workspace({
     useState<InboxSessionPortal | null>(null);
   const openingInboxSessions = useRef(new Map<string, Promise<string>>());
   const [notesViewOpen, setNotesViewOpen] = useState(false);
-  const [automationsViewOpen, setAutomationsViewOpen] = useState(false);
   const [openAppViews, setOpenAppViews] = useState<AppView[]>([]);
   // Monos open as title tabs in the inset layout, by Mono id.
   const [openMonoTabs, setOpenMonoTabs] = useState<string[]>([]);
@@ -1325,9 +1285,7 @@ function Workspace({
       ? "inbox"
       : notesViewOpen
         ? "notes"
-        : automationsViewOpen
-          ? "automations"
-          : undefined;
+        : undefined;
   const rememberAppView = useCallback((view: AppView) => {
     setOpenAppViews((current) =>
       current.includes(view) ? current : [...current, view],
@@ -1443,7 +1401,6 @@ function Workspace({
     search: false,
     inbox: false,
     notes: false,
-    automations: false,
   });
   const [updateNotice, setUpdateNotice] = useState(installedUpdate);
   const [whatsNewVersion, setWhatsNewVersion] = useState<string | null>(null);
@@ -1558,8 +1515,6 @@ function Workspace({
   const linkedWorkItemActivityFetches = useRef(new Map<string, number>());
   const queueDispatchingRef = useRef(new Set<string>());
   const [queueDispatchVersion, setQueueDispatchVersion] = useState(0);
-  const mobileUsageActions = useRef<{ resume: (id: string) => Promise<boolean>; automatic: (id: string, enabled: boolean) => void } | null>(null);
-  const mobileUsagePending = useRef(new Set<string>());
   const usageResumingRef = useRef(new Set<string>());
   const usageResetLookups = useRef(new WeakSet<UsageLimit>());
   const tabsRef = useRef(tabs);
@@ -1690,14 +1645,12 @@ function Workspace({
       !searchViewOpen &&
       !inboxViewOpen &&
       !notesViewOpen &&
-      !automationsViewOpen &&
       !settingsOpen &&
       !monoViewId,
     standaloneSessionId: inboxViewOpen
       ? inboxAskPortal?.sessionId
       : !searchViewOpen &&
           !notesViewOpen &&
-          !automationsViewOpen &&
           !settingsOpen
         ? (monoViewId ?? undefined)
         : undefined,
@@ -1705,15 +1658,12 @@ function Workspace({
       !inboxViewOpen &&
       !searchViewOpen &&
       !notesViewOpen &&
-      !automationsViewOpen &&
       !settingsOpen
         ? shownMonoSessionId
         : undefined,
   };
   const notesViewOpenRef = useRef(notesViewOpen);
   notesViewOpenRef.current = notesViewOpen;
-  const automationsViewOpenRef = useRef(automationsViewOpen);
-  automationsViewOpenRef.current = automationsViewOpen;
   const settingsOpenRef = useRef(settingsOpen);
   settingsOpenRef.current = settingsOpen;
   const sessionNavigationIdsRef = useRef<readonly string[]>([]);
@@ -1750,8 +1700,6 @@ function Workspace({
       preloadNavigationWhenIdle([
         InboxView.preload,
         LinkedWorkItemPanel.preload,
-        AutomationsView.preload,
-        listAutomations,
         ...(notesEnabled ? [NotesView.preload, loadNotes] : []),
       ]),
     [notesEnabled],
@@ -2119,7 +2067,7 @@ function Workspace({
     activeFile?.projectCwd ?? activeFile?.cwd ?? active?.cwd ?? projectCwd;
   const sidebarCwdRef = useRef(sidebarCwd);
   sidebarCwdRef.current = sidebarCwd;
-  // Each inset space is one project, so its Inbox, Notes and Automations (and
+  // Each inset space is one project, so its Inbox, Notes (and
   // the Inbox dot) show that project's items; the classic layout shows all.
   const appViewScope =
     insetLayout && looksLikeProject(sidebarCwd) ? sidebarCwd : undefined;
@@ -2418,7 +2366,6 @@ function Workspace({
       monoCovers,
     ],
   );
-  const [reminderNoticesHeight, setReminderNoticesHeight] = useState(0);
   const [harnessUpdateHeight, setHarnessUpdateHeight] = useState(0);
   const [newLayoutNoticeHeight, setNewLayoutNoticeHeight] = useState(0);
   // The footer's slot for the resource pressure chip. Monitoring continues
@@ -2444,7 +2391,6 @@ function Workspace({
             !searchViewOpenRef.current &&
             !inboxViewOpenRef.current &&
             !notesViewOpenRef.current &&
-            !automationsViewOpenRef.current &&
             !settingsOpenRef.current
           ) {
             setComposerFocused(true);
@@ -2482,7 +2428,6 @@ function Workspace({
     shownMonoSessionId,
     searchViewOpen,
     notesViewOpen,
-    automationsViewOpen,
     settingsOpen,
     flushForegroundHarnessEvents,
   ]);
@@ -3001,7 +2946,6 @@ function Workspace({
     setSearchViewOpen(false);
     setInboxViewOpen(false);
     setNotesViewOpen(false);
-    setAutomationsViewOpen(false);
     const cwd = sidebarCwd;
     const session = newWorkspaceSession(cwd, sessionDefaults?.runtimeMode);
     const tab = newTab(session.id);
@@ -3017,7 +2961,6 @@ function Workspace({
       setSearchViewOpen(false);
       setInboxViewOpen(false);
       setNotesViewOpen(false);
-      setAutomationsViewOpen(false);
       const existing = findRemoteSessionTab(
         tabsRef.current,
         sessionsRef.current,
@@ -3045,12 +2988,11 @@ function Workspace({
       const start = (description?: string) => {
         setInboxViewOpen(false);
         setNotesViewOpen(false);
-        setAutomationsViewOpen(false);
         const cwd =
           item.projectPath || active?.cwd || sessionDefaults?.cwd || projectCwd;
         setSidebarTab("sessions", cwd);
         const ref =
-          item.provider === "linear" || item.provider === "jira"
+          item.provider === "linear"
             ? item.identifier?.trim() || `#${item.number}`
             : `#${item.number}`;
         const linkedWorkItem = linkedWorkItemFromInboxItem(item);
@@ -3084,7 +3026,6 @@ function Workspace({
       setSearchViewOpen(false);
       setInboxViewOpen(false);
       setNotesViewOpen(false);
-      setAutomationsViewOpen(false);
       const cwd =
         (card.sourceCwd && looksLikeProject(card.sourceCwd)
           ? card.sourceCwd
@@ -4954,37 +4895,9 @@ function Workspace({
               ? candidate
               : await invoke<string>("default_cwd");
           const description =
-            item.provider === "linear" || item.provider === "jira"
+            item.provider === "linear"
               ? await inboxTrackerDescription(item)
-              : item.provider === "gitlab" &&
-                  (item.kind === "issue" || item.kind === "pr")
-                ? (
-                    peekGitlabWorkItemDetails(
-                      item.repo,
-                      item.kind,
-                      item.number,
-                    ) ??
-                    (await gitlabWorkItemDetails(
-                      item.repo,
-                      item.kind,
-                      item.number,
-                    ))
-                  ).body
-                : item.provider === "azuredevops" &&
-                    (item.kind === "issue" || item.kind === "pr")
-                  ? (
-                      peekAzureDevOpsWorkItemDetails(
-                        item.repo,
-                        item.kind,
-                        item.number,
-                      ) ??
-                      (await azureDevOpsWorkItemDetails(
-                        item.repo,
-                        item.kind,
-                        item.number,
-                      ))
-                    ).body
-                  : undefined;
+              : undefined;
           session = {
             ...newDefaultSession(cwd),
             title: `Ask · ${item.title}`,
@@ -5097,7 +5010,6 @@ function Workspace({
       setSearchViewOpen(false);
       setInboxViewOpen(false);
       setNotesViewOpen(false);
-      setAutomationsViewOpen(false);
       setMonoViewId(session.id);
       if (insetLayoutRef.current) {
         setOpenMonoTabs((current) =>
@@ -5239,7 +5151,6 @@ function Workspace({
       setSettingsOpen(false);
       setInboxViewOpen(false);
       setNotesViewOpen(false);
-      setAutomationsViewOpen(false);
       if (looksLikeProject(session.cwd))
         setProjectCwd(normalizeProjectPath(session.cwd));
       const linkedUpdate = linkedSessionUpdatesRef.current.get(session.id);
@@ -5316,52 +5227,8 @@ function Workspace({
     [showMonoLaunchedSession],
   );
 
-  const openReminderSession = useCallback(
-    async (sessionId: string) => {
-      const session = await ensureOpenSession(sessionId);
-      if (!session)
-        throw new Error("This conversation is no longer available.");
-      setSearchViewOpen(false);
-      setInboxViewOpen(false);
-      setNotesViewOpen(false);
-      setAutomationsViewOpen(false);
-      setSettingsOpen(false);
-      setFilePickerOpen(false);
-      setSidebarTab("sessions", session.cwd);
-      setProjectCwd(session.cwd);
-      setRecents(rememberProject(session.cwd));
-      await onSelectHistorySession(sessionId);
-    },
-    [ensureOpenSession, onSelectHistorySession],
-  );
-
-  const ensureReminderSessionsSaved = useCallback(
-    async (ids: readonly string[]) => {
-      for (const id of ids) {
-        const session = sessionsRef.current.find(
-          (session) => session.id === id,
-        );
-        if (session && !(await upsertSession(session))) {
-          throw new Error(
-            "Send a message in this conversation before setting a reminder.",
-          );
-        }
-      }
-    },
-    [],
-  );
-
-  const sessionReminders = useSessionReminders(
-    openReminderSession,
-    ensureReminderSessionsSaved,
-    sessions
-      .filter((session) => !session.inboxAsk)
-      .map((session) => session.id),
-  );
-
   const dismissNoticesForContinuedSession = useCallback(
     (sessionId: string) => {
-      void sessionReminders.dismissDue(sessionId);
       const updatedAt = sessionsRef.current.find(
         (session) => session.id === sessionId,
       )?.linkedWorkItemUpdateCard?.updatedAt;
@@ -5371,7 +5238,7 @@ function Workspace({
         card?.updatedAt === updatedAt ? undefined : card,
       );
     },
-    [sessionReminders.dismissDue, setLinkedWorkItemUpdateCard],
+    [setLinkedWorkItemUpdateCard],
   );
 
   const onPlaceSessionOnPane = useCallback(
@@ -5926,7 +5793,6 @@ function Workspace({
             searchViewOpenRef.current ||
             inboxViewOpenRef.current ||
             notesViewOpenRef.current ||
-            automationsViewOpenRef.current ||
             settingsOpenRef.current ||
             filePickerOpenRef.current ||
             whatsNewVersionRef.current,
@@ -6500,7 +6366,6 @@ function Workspace({
       setSearchViewOpen(false);
       setInboxViewOpen(false);
       setNotesViewOpen(false);
-      setAutomationsViewOpen(false);
 
       // At most one folder can take the blank session, and it keeps the
       // retargeting rules `onCwdChange` already owns.
@@ -8775,162 +8640,6 @@ function Workspace({
     },
   });
 
-  const automationSessionReservations = useRef(new Set<string>());
-  const automationRecoveryRef = useRef<Promise<void> | null>(null);
-  const automationRecoveryCutoffRef = useRef(Date.now());
-
-  const launchAutomation = useCallback(
-    async (
-      automation: Automation,
-      run: AutomationRun,
-      reveal = false,
-      prompt = run.prompt ?? automation.prompt,
-      sourceWorkItem?: LinkedWorkItem,
-    ) => {
-      let reservationId: string | undefined;
-      let releaseAfterSettle = false;
-      const releaseReservation = () => {
-        if (!reservationId) return;
-        automationSessionReservations.current.delete(reservationId);
-        reservationId = undefined;
-      };
-      try {
-        const eventRun = run.trigger === "event";
-        const linkedWorkItem =
-          sourceWorkItem ?? linkedWorkItemFromAutomationEvent(run);
-        let session =
-          automation.reuseSession && automation.lastSessionId
-            ? sessionsRef.current.find(
-                (entry) =>
-                  entry.id === automation.lastSessionId &&
-                  entry.harness === automation.harness &&
-                  !entry.busy &&
-                  !entry.worktreeRemoved &&
-                  !automationSessionReservations.current.has(entry.id) &&
-                  (automation.workspaceMode === "current"
-                    ? entry.workspaceMode !== "worktree" &&
-                      !entry.worktreeCwd &&
-                      pathKey(entry.cwd) === pathKey(automation.cwd)
-                    : automation.workspaceMode === "existing"
-                      ? pathKey(sessionWorkCwd(entry)) ===
-                        pathKey(automation.worktreeCwd ?? "")
-                      : false),
-              )
-            : undefined;
-
-        if (!session) {
-          session = {
-            ...newSession(
-              automation.harness,
-              automation.cwd,
-              automation.model,
-              automation.runtimeMode,
-              automation.modelSettings,
-            ),
-            title: eventRun
-              ? HARNESS_LABEL[automation.harness]
-              : formatSessionTitle(automation.harness, automation.name),
-            automationId: automation.id,
-            ...(linkedWorkItem ? { linkedWorkItem } : {}),
-            ...(automation.workspaceMode === "worktree"
-              ? { workspaceMode: "worktree" as const, worktreeBase: "HEAD" }
-              : automation.workspaceMode === "existing" &&
-                  automation.worktreeCwd
-                ? { worktreeCwd: automation.worktreeCwd }
-                : {}),
-          };
-          const nextSessions = [...sessionsRef.current, session];
-          sessionsRef.current = nextSessions;
-          setSessions(nextSessions);
-          const tab = newTab(session.id);
-          appendTab(tab, automation.cwd);
-          if (reveal) {
-            setActiveTabId(tab.id);
-            setComposerFocused(false);
-          }
-        } else {
-          const stamped = {
-            ...session,
-            automationId: automation.id,
-            model: automation.model,
-            modelSettings: automation.modelSettings ?? {},
-            runtimeMode: automation.runtimeMode,
-            ...(linkedWorkItem ? { linkedWorkItem } : {}),
-          };
-          session = stamped;
-          const nextSessions = sessionsRef.current.map((entry) =>
-            entry.id === stamped.id ? stamped : entry,
-          );
-          sessionsRef.current = nextSessions;
-          setSessions(nextSessions);
-          if (reveal) {
-            focusOpenSession(session.id);
-          }
-        }
-
-        reservationId = session.id;
-        automationSessionReservations.current.add(session.id);
-
-        if (automation.sessionFolderId && looksLikeProject(automation.cwd)) {
-          saveSessionFolders(
-            automation.cwd,
-            placeSessionInFolder(
-              loadSessionFolders(automation.cwd),
-              session.id,
-              { kind: "existing", folderId: automation.sessionFolderId },
-            ),
-          );
-        }
-
-        if (reveal) {
-          setSearchViewOpen(false);
-          setInboxViewOpen(false);
-          setNotesViewOpen(false);
-          setAutomationsViewOpen(false);
-          setSidebarTab("sessions", session.cwd);
-        }
-
-        await updateAutomationRun(run.id, "running", {
-          sessionId: session.id,
-        });
-        // From here the settlement callback owns reservation cleanup, including
-        // a rejected submission that never starts an agent turn.
-        releaseAfterSettle = true;
-        await submitWithSettlement({
-          submit: (onSettled) =>
-            submitSession(session.id, prompt, [], {
-              refreshTitle: eventRun,
-              onSettled,
-            }),
-          rejectionMessage:
-            "The selected agent session could not start this run.",
-          onSettled: (outcome) => {
-            const status =
-              outcome.status === "completed"
-                ? "succeeded"
-                : outcome.status === "cancelled"
-                  ? "cancelled"
-                  : "failed";
-            void updateAutomationRun(run.id, status, {
-              sessionId: session.id,
-              ...(outcome.error ? { error: outcome.error } : {}),
-            })
-              .catch(() => undefined)
-              .finally(releaseReservation);
-          },
-        });
-      } catch (reason: unknown) {
-        await updateAutomationRun(run.id, "failed", {
-          error: reason instanceof Error ? reason.message : String(reason),
-        }).catch(() => undefined);
-        throw reason;
-      } finally {
-        if (!releaseAfterSettle) releaseReservation();
-      }
-    },
-    [appendTab, focusOpenSession, submitSession],
-  );
-
   const queueMonoSessionCompletion = useCallback(
     async (
       monoId: string,
@@ -9032,7 +8741,6 @@ function Workspace({
             setSearchViewOpen(false);
             setInboxViewOpen(false);
             setNotesViewOpen(false);
-            setAutomationsViewOpen(false);
             setSidebarTab("sessions", cwd);
           },
           submit: (id, text, attachments, options) =>
@@ -9066,215 +8774,9 @@ function Workspace({
   const ensureOpenSessionRef = useRef(ensureOpenSession);
   ensureOpenSessionRef.current = ensureOpenSession;
 
-  useMobileWorkspace({
-    sessions,
-    defaultRuntimeMode: sessionDefaults?.runtimeMode,
-    command: async (method, params, commandId) => {
-      const text = typeof params.text === "string" ? params.text.trim() : "";
-      if (
-        (method === "session.start" || method === "conversation.send") &&
-        ((!text && !hasMobileAttachments(params.attachments)) || text.length > 100_000)
-      )
-        throw new Error("Enter a message under 100,000 characters");
-      if (method === "session.start") {
-        const paths = [...loadRecents().map((project) => project.path), ...loadPinnedProjects(), ...listMonos().flatMap((mono) => mono.projects)];
-        const cwd = paths.find((path) => mobileProjectId(path) === params.projectId);
-        if (!cwd) throw new Error("Project is no longer available");
-        const id = String(params.sessionId ?? "");
-        if (!id) throw new Error("Missing mobile session ID");
-        const existing = sessionsRef.current.find(current => current.id === id) ?? await getSession(id);
-        if (existing?.blocks.some(block => block.appRequestId === commandId)) return { sessionId: id };
-        // Staged before the session exists, so a bad file leaves nothing behind.
-        const attachments = await mobileAttachments(params.attachments);
-        const session = existing ?? {
-          ...applyMobileChoice(mobileNewSession(cwd, sessionDefaults?.runtimeMode), params),
-          ...(await mobileWorkspaceChoice(cwd, params)),
-        };
-        // A placeholder title, so the first send seeds and generates one as the composer does.
-        session.id = id;
-        if (!existing) session.title = HARNESS_LABEL[session.harness];
-        if (!sessionsRef.current.some(current => current.id === id))
-          updateSessionState(sessionsRef, setSessions, (current) => [...current, session]);
-        if (!submitSessionRef.current(session.id, text, attachments, { appRequestId: commandId }))
-          throw new Error("Desktop could not start this session");
-        await upsertSession(sessionsRef.current.find((current) => current.id === session.id) ?? session);
-        return { sessionId: session.id };
-      }
-      const conversationId = String(params.conversationId ?? "");
-      const mono = conversationId.startsWith("mono:") ? findMono(conversationId.slice(5)) : undefined;
-      if (conversationId.startsWith("mono:") && !mono) throw new Error("Mono is no longer available");
-      if (method === "session.rename") {
-        // As the sidebar's rename, which also renames a session that isn't open.
-        const title = typeof params.title === "string" ? params.title.trim() : "";
-        if (!title || title.length > 200) throw new Error("Enter a title under 200 characters");
-        if (mono) throw new Error("A Mono's conversation can't be renamed");
-        await onRenameHistorySession(conversationId, title);
-        return { sessionId: conversationId };
-      }
-      if (method === "session.delete" || method === "session.archive") {
-        // As the CLI's delete and archive: no desktop dialogs, and the worktree stays.
-        const mode = method === "session.archive" ? "archive" : "delete";
-        const verb = mode === "archive" ? "archived" : "deleted";
-        const target = mono ? undefined : await ensureOpenSessionRef.current(conversationId);
-        if (!target || target.orchestrationLeadId || isMonoSession(target.id) || isHabitRun(target.id))
-          throw new Error(`This session can't be ${verb} from the phone`);
-        if (!(await onRemoveHistorySession(target.id, mode, true, "cli")))
-          throw new Error(`Session could not be ${verb}; another session operation is in progress`);
-        return { sessionId: target.id };
-      }
-      const monoSession = mono ? await ensureMonoSession(mono.id, {
-        home: homeDir,
-        load: ensureOpenSessionRef.current,
-        create: (path) => newDefaultSession(path),
-        add: (created) => updateSessionState(sessionsRef, setSessions, (current) => [...current, created]),
-      }) : undefined;
-      const sessionId = monoSession?.id ?? conversationId;
-      const session = monoSession ?? await ensureOpenSessionRef.current(sessionId);
-      if (!session) throw new Error("Session is no longer available");
-      if (method === "session.resumeUsage" || method === "session.resumeUsageAtReset") {
-        await recoverMobileUsage({
-          session: sessionsRef.current.find((current) => current.id === session.id),
-          token: params.token,
-          automatic: method === "session.resumeUsageAtReset",
-          enabled: params.enabled,
-          pending: mobileUsagePending.current,
-          resume: mobileUsageActions.current!.resume,
-          setAutomatic: mobileUsageActions.current!.automatic,
-        });
-        return { sessionId: session.id };
-      }
-      if (method === "session.cancel") {
-        await onStop(session.id);
-        return { sessionId: session.id };
-      }
-      if (method === "session.configure") {
-        // The phone's model sheet, through the same paths as the composer's
-        // pickers, so a provider switch hands off on the next send as here.
-        const choice = mobileChoice(params);
-        if (choice.harness && choice.model && (choice.harness !== session.harness || choice.model !== session.model))
-          onModelChange(session.id, choice.harness, choice.model);
-        if (choice.modelSettings) {
-          const resolved = resolveModel(choice.harness ?? session.harness, choice.model ?? session.model);
-          onModelSettingsChange(session.id, mergeModelSettings(resolved, choice.modelSettings));
-        }
-        if (choice.runtimeMode) onRuntimeModeChange(session.id, choice.runtimeMode);
-        return { sessionId: session.id };
-      }
-      if (method === "session.answerQuestion" || method === "session.keepQuestionOpen") {
-        // As the composer's question card; only the question still waiting,
-        // read as it is now since opening the session may have taken a while.
-        const live = sessionsRef.current.find((current) => current.id === session.id);
-        if (!live || live.worktreeRemoved) throw new Error("Session is no longer available");
-        const question = live.pendingQuestion;
-        if (!question || question.requestId !== params.requestId)
-          throw new Error("This question was already answered");
-        if (method === "session.keepQuestionOpen") {
-          onQuestionInteraction(live.id, question.requestId);
-          return { sessionId: live.id };
-        }
-        // A remote session answers through its open tab; without one it would be dropped.
-        if (remoteProjectFor(live.cwd) && !remoteSessionActions(live.id))
-          throw new Error("Open this session on the desktop to answer it");
-        const reply = mobileQuestionReply(params.reply, question);
-        if (!reply) throw new Error("Choose an answer or skip the question");
-        onQuestionReply(live.id, question.requestId, reply);
-        return { sessionId: live.id };
-      }
-      if (method !== "conversation.send") throw new Error("Unsupported mobile command");
-      if (
-        session.blocks.some((block) => block.appRequestId === commandId) ||
-        session.queuedMessages?.some((message) => message.id === commandId)
-      )
-        return { sessionId: session.id };
-      const attachments = await mobileAttachments(params.attachments);
-      // Mid-turn it steers or queues, as a message typed in the composer would.
-      if (!submitSessionRef.current(session.id, text, attachments, { appRequestId: commandId, followsUp: true }))
-        throw new Error("Desktop could not accept the message. Wait for the current turn to finish and try again.");
-      await upsertSession(sessionsRef.current.find(current => current.id === session.id) ?? session);
-      return { sessionId: session.id };
-    },
-  });
 
   const appReceipts = useRef(
     new Map<string, { signature: string; promise: Promise<unknown> }>(),
-  );
-
-  const ensureAutomationRecovery = useCallback(() => {
-    if (!automationRecoveryRef.current) {
-      const recovery = (async () => {
-        const pending = await recoverAutomationRuns(
-          automationRecoveryCutoffRef.current,
-        );
-        for (const item of pending) {
-          await launchAutomation(
-            item.automation,
-            item.run,
-            false,
-            item.run.prompt ?? item.automation.prompt,
-          ).catch(() => undefined);
-        }
-      })();
-      automationRecoveryRef.current = recovery.catch((error: unknown) => {
-        automationRecoveryRef.current = null;
-        throw error;
-      });
-    }
-    return automationRecoveryRef.current;
-  }, [launchAutomation]);
-
-  useEffect(() => {
-    let disposed = false;
-    let evaluating = false;
-    const evaluate = async () => {
-      if (disposed || evaluating) return;
-      evaluating = true;
-      try {
-        await ensureAutomationRecovery();
-        const due = await claimDueAutomations();
-        for (const item of due) {
-          if (disposed) break;
-          void launchAutomation(item.automation, item.run).catch(
-            () => undefined,
-          );
-        }
-      } catch {
-        // Scheduling retries on the next tick; individual claimed runs record
-        // launch failures in launchAutomation.
-      } finally {
-        evaluating = false;
-      }
-    };
-    void evaluate();
-    const timer = window.setInterval(() => void evaluate(), 30_000);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void evaluate();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      disposed = true;
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [ensureAutomationRecovery, launchAutomation]);
-
-  const onInboxAppeared = useCallback(
-    (items: Parameters<typeof claimInboxAutomationRuns>[0]) => {
-      void ensureAutomationRecovery()
-        .then(() => claimInboxAutomationRuns(items))
-        .then((due) => {
-          for (const item of due) {
-            void launchAutomation(
-              item.automation,
-              item.run,
-              false,
-              item.prompt,
-              item.linkedWorkItem,
-            ).catch(() => undefined);
-          }
-        })
-        .catch(() => undefined);
-    },
-    [ensureAutomationRecovery, launchAutomation],
   );
 
   const onUpdatePlan = useCallback(
@@ -9680,8 +9182,6 @@ function Workspace({
     },
     [submitSession, onUsageLimitDismiss],
   );
-
-  mobileUsageActions.current = { resume: onUsageLimitResume, automatic: onUsageLimitResumeAtReset };
 
   const usageLimitSwitching = useRef(new Set<string>());
   const onUsageLimitAccountChange = useCallback(
@@ -11920,7 +11420,6 @@ function Workspace({
       setSearchViewOpen(false);
       setInboxViewOpen(false);
       setNotesViewOpen(false);
-      setAutomationsViewOpen(false);
       onOpenApprovalSession(sessionId);
     },
     [onOpenApprovalSession],
@@ -12084,7 +11583,6 @@ function Workspace({
     linkedSessionUpdateIds,
     linkedSessionUpdates,
   } = useInboxActivity(recents, sidebarCwd, sidebarHistory, {
-    onAppeared: onInboxAppeared,
     scopeProject: appViewScope,
   });
   linkedSessionUpdatesRef.current = linkedSessionUpdates;
@@ -12193,7 +11691,6 @@ function Workspace({
     setSearchViewOpen(false);
     setInboxViewOpen(false);
     setNotesViewOpen(false);
-    setAutomationsViewOpen(false);
     setFilePickerInitialQuery("");
     setFilePickerResetToken((token) => token + 1);
     setFilePickerOpen(true);
@@ -12202,7 +11699,6 @@ function Workspace({
     setSearchViewOpen(false);
     setInboxViewOpen(false);
     setNotesViewOpen(false);
-    setAutomationsViewOpen(false);
     setFilePickerInitialQuery(">");
     setFilePickerResetToken((token) => token + 1);
     setFilePickerOpen(true);
@@ -12218,7 +11714,6 @@ function Workspace({
     setSearchViewOpen(false);
     setInboxViewOpen(false);
     setNotesViewOpen(false);
-    setAutomationsViewOpen(false);
     setSidebarTab("files");
     setFilesSearchOpen(true);
     setSearchFocusToken((token) => token + 1);
@@ -12235,7 +11730,6 @@ function Workspace({
       setSettingsOpen(false);
       setInboxViewOpen(false);
       setNotesViewOpen(false);
-      setAutomationsViewOpen(false);
       setSearchViewOpen(true);
       setSearchViewFocusToken((token) => token + 1);
     });
@@ -12254,7 +11748,6 @@ function Workspace({
       setSettingsOpen(false);
       setSearchViewOpen(false);
       setNotesViewOpen(false);
-      setAutomationsViewOpen(false);
       setInboxViewOpen(true);
     });
   }, []);
@@ -12267,7 +11760,6 @@ function Workspace({
       setSettingsOpen(false);
       setSearchViewOpen(false);
       setNotesViewOpen(false);
-      setAutomationsViewOpen(false);
       setInboxViewOpen(false);
       const cwd =
         sessionsRef.current.find((session) => session.id === sessionId)?.cwd ??
@@ -12372,7 +11864,6 @@ function Workspace({
       setSettingsOpen(false);
       setSearchViewOpen(false);
       setInboxViewOpen(false);
-      setAutomationsViewOpen(false);
       setNotesViewOpen(true);
     });
   }, []);
@@ -12380,43 +11871,6 @@ function Workspace({
   const onLeaveNotes = useCallback(() => {
     setNotesViewOpen(false);
   }, []);
-
-  const onOpenAutomations = useCallback(() => {
-    workspaceNavigation.cancel();
-    startTransition(() => {
-      closeMonoView();
-      rememberAppView("automations");
-      setFilePickerOpen(false);
-      setSettingsOpen(false);
-      setSearchViewOpen(false);
-      setInboxViewOpen(false);
-      setNotesViewOpen(false);
-      setAutomationsViewOpen(true);
-    });
-  }, []);
-
-  const onLeaveAutomations = useCallback(() => {
-    setAutomationsViewOpen(false);
-  }, []);
-
-  const onOpenAutomationSession = useCallback(
-    async (sessionId: string) => {
-      const session = await ensureOpenSession(sessionId);
-      if (!session)
-        throw new Error("This conversation is no longer available.");
-      setAutomationsViewOpen(false);
-      setSearchViewOpen(false);
-      setInboxViewOpen(false);
-      setNotesViewOpen(false);
-      setSettingsOpen(false);
-      setFilePickerOpen(false);
-      setSidebarTab("sessions", session.cwd);
-      setProjectCwd(session.cwd);
-      setRecents(rememberProject(session.cwd));
-      await onSelectHistorySession(sessionId);
-    },
-    [ensureOpenSession, onSelectHistorySession],
-  );
 
   const openSettings = useCallback(
     (section?: SettingsSectionId, anchor?: SettingsAnchor) => {
@@ -12426,7 +11880,6 @@ function Workspace({
           search: searchViewOpenRef.current,
           inbox: inboxViewOpenRef.current,
           notes: notesViewOpenRef.current,
-          automations: automationsViewOpenRef.current,
         };
       }
       startTransition(() => {
@@ -12434,7 +11887,6 @@ function Workspace({
         setSearchViewOpen(false);
         setInboxViewOpen(false);
         setNotesViewOpen(false);
-        setAutomationsViewOpen(false);
         if (section) {
           setSettingsSection(section);
           saveSettingsSection(section);
@@ -12487,7 +11939,6 @@ function Workspace({
     setSearchViewOpen(returnView.search);
     setInboxViewOpen(returnView.inbox);
     setNotesViewOpen(returnView.notes && loadNotesEnabled());
-    setAutomationsViewOpen(returnView.automations);
     setSettingsOpen(false);
   }, []);
 
@@ -12521,10 +11972,6 @@ function Workspace({
       setNotesViewOpen(false);
       return;
     }
-    if (automationsViewOpen) {
-      setAutomationsViewOpen(false);
-      return;
-    }
     if (monoViewIdRef.current) {
       closeMonoView();
       setComposerFocused(true);
@@ -12539,7 +11986,6 @@ function Workspace({
     settingsOpen,
     inboxViewOpen,
     notesViewOpen,
-    automationsViewOpen,
   ]);
 
   const onRailForward = useCallback(() => {
@@ -12547,7 +11993,6 @@ function Workspace({
     setSettingsOpen(false);
     setInboxViewOpen(false);
     setNotesViewOpen(false);
-    setAutomationsViewOpen(false);
     onVisitForward();
   }, [onVisitForward]);
 
@@ -12684,7 +12129,6 @@ function Workspace({
           search: onOpenSearch,
           inbox: onOpenInbox,
           notes: onOpenNotes,
-          automations: onOpenAutomations,
         };
         open[view]();
         return;
@@ -12693,7 +12137,6 @@ function Workspace({
       setSettingsOpen(false);
       setInboxViewOpen(false);
       setNotesViewOpen(false);
-      setAutomationsViewOpen(false);
       activateTab(id);
     },
     [
@@ -12702,7 +12145,6 @@ function Workspace({
       onOpenSearch,
       onOpenInbox,
       onOpenNotes,
-      onOpenAutomations,
     ],
   );
 
@@ -12735,7 +12177,6 @@ function Workspace({
       if (view === "search") setSearchViewOpen(false);
       if (view === "inbox") setInboxViewOpen(false);
       if (view === "notes") setNotesViewOpen(false);
-      if (view === "automations") setAutomationsViewOpen(false);
       if (nextId) navigation.select?.(nextId);
     });
   }, []);
@@ -13066,7 +12507,6 @@ function Workspace({
             searchViewOpenRef.current ||
             inboxViewOpenRef.current ||
             notesViewOpenRef.current ||
-            automationsViewOpenRef.current ||
             settingsOpenRef.current ||
             filePickerOpenRef.current ||
             Boolean(whatsNewVersionRef.current);
@@ -13154,7 +12594,6 @@ function Workspace({
         !searchViewOpenRef.current &&
         !inboxViewOpenRef.current &&
         !notesViewOpenRef.current &&
-        !automationsViewOpenRef.current &&
         !(
           e.target instanceof Element &&
           e.target.closest("[data-session-drop], [data-agent-tab]")
@@ -13865,8 +13304,7 @@ function Workspace({
     searchViewOpen ||
     settingsOpen ||
     inboxViewOpen ||
-    notesViewOpen ||
-    automationsViewOpen;
+    notesViewOpen;
   const compactProjectRail = collapsedProjectRailMode === "compact";
   const compactRailActive = compactProjectRail && !projectRailOpen;
   // Overlay back stays only while the spaces strip is not on screen.
@@ -14111,9 +13549,6 @@ function Workspace({
       onPinSession={onPinHistorySession}
       onPinSessions={onPinHistorySessions}
       onSetSessionLinkedWorkItem={onSetHistorySessionLinkedWorkItem}
-      reminders={sessionReminders.reminders}
-      onSetReminders={sessionReminders.schedule}
-      onCancelReminders={sessionReminders.cancel}
       onDeleteSession={onDeleteHistorySession}
       onDeleteSessions={onDeleteHistorySessions}
       onOpenFile={onOpenFile}
@@ -14126,8 +13561,7 @@ function Workspace({
         searchViewOpen ||
         settingsOpen ||
         inboxViewOpen ||
-        notesViewOpen ||
-        automationsViewOpen
+        notesViewOpen
       }
       canGoForward={tabVisitNav.canForward}
       onGoBack={onRailBack}
@@ -14157,12 +13591,10 @@ function Workspace({
       onOpenInbox={onOpenInbox}
       onOpenInboxItem={onOpenLinkedWorkItem}
       onOpenNotes={notesEnabled ? onOpenNotes : undefined}
-      onOpenAutomations={onOpenAutomations}
       onGoToFile={onGoToFile}
       searchActive={searchViewOpen}
       inboxActive={inboxViewOpen}
       notesActive={notesViewOpen}
-      automationsActive={automationsViewOpen}
       notesEnabled={notesEnabled}
       // The inset layout has no project rail: the sidebar header's menu
       // switches projects.
@@ -14269,8 +13701,7 @@ function Workspace({
                       searchViewOpen ||
                       settingsOpen ||
                       inboxViewOpen ||
-                      notesViewOpen ||
-                      automationsViewOpen
+                      notesViewOpen
                         ? "hidden"
                         : "flex min-h-0 min-w-0 flex-1 flex-col"
                     }
@@ -14278,15 +13709,13 @@ function Workspace({
                       searchViewOpen ||
                       settingsOpen ||
                       inboxViewOpen ||
-                      notesViewOpen ||
-                      automationsViewOpen
+                      notesViewOpen
                     }
                     inert={
                       searchViewOpen ||
                       settingsOpen ||
                       inboxViewOpen ||
                       notesViewOpen ||
-                      automationsViewOpen ||
                       undefined
                     }
                   >
@@ -14556,7 +13985,6 @@ function Workspace({
                                 !settingsOpen &&
                                 !inboxViewOpen &&
                                 !notesViewOpen &&
-                                !automationsViewOpen &&
                                 !monoViewId &&
                                 activeLinkedWorkItemPanel?.sessionId ===
                                   panel.sessionId
@@ -14660,25 +14088,6 @@ function Workspace({
                         recents={recents}
                         onClose={onLeaveNotes}
                         onToggleSidebar={onToggleSidebar}
-                      />
-                    </AppViewSurface>
-                  ) : null}
-                  {automationsViewOpen ||
-                  (insetLayout && openAppViews.includes("automations")) ? (
-                    <AppViewSurface active={automationsViewOpen}>
-                      <AutomationsView
-                        tabbed={insetLayout}
-                        besideRail={insetLayout || spacesStripVisible}
-                        compactRail={!insetLayout && compactRailActive}
-                        cwd={projectCwd}
-                        scopeProject={appViewScope}
-                        recents={recents}
-                        onClose={onLeaveAutomations}
-                        onToggleSidebar={onToggleSidebar}
-                        onLaunch={(automation, run) =>
-                          launchAutomation(automation, run, true)
-                        }
-                        onOpenSession={onOpenAutomationSession}
                       />
                     </AppViewSurface>
                   ) : null}
@@ -14787,15 +14196,12 @@ function Workspace({
             />
           )}
           <HarnessUpdateNotice
-            topOffset={
-              12 + (reminderNoticesHeight ? reminderNoticesHeight + 8 : 0)
-            }
+            topOffset={12}
             onHeightChange={setHarnessUpdateHeight}
           />
           <NewLayoutNotice
             topOffset={
               12 +
-              (reminderNoticesHeight ? reminderNoticesHeight + 8 : 0) +
               (harnessUpdateHeight ? harnessUpdateHeight + 8 : 0)
             }
             onHeightChange={setNewLayoutNoticeHeight}
@@ -14812,22 +14218,11 @@ function Workspace({
             notices={hiddenApprovalToasts}
             topOffset={
               12 +
-              (reminderNoticesHeight ? reminderNoticesHeight + 8 : 0) +
               (harnessUpdateHeight ? harnessUpdateHeight + 8 : 0) +
               (newLayoutNoticeHeight ? newLayoutNoticeHeight + 8 : 0)
             }
             onFocusSession={onOpenApprovalSession}
             onApproval={onApproval}
-          />
-          <ReminderNotices
-            reminders={sessionReminders.due}
-            error={sessionReminders.error}
-            onOpen={sessionReminders.open}
-            onSnooze={sessionReminders.schedule}
-            onDismiss={sessionReminders.cancel}
-            onRetry={sessionReminders.refresh}
-            onOpenSettings={() => openSettings("general", "notifications")}
-            onHeightChange={setReminderNoticesHeight}
           />
           {whatsNewVersion ? (
             <WhatsNewDialog

@@ -63,9 +63,9 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     group: "app",
     label: "Connections",
     description:
-      "Run agents on your other machines, and pair your phone with this desktop.",
+      "Run agents on your other machines.",
     keywords:
-      "ssh remote host machine server environment always on mobile phone iphone qr pair router",
+      "ssh remote host machine server environment always on",
   },
   {
     id: "appearance",
@@ -134,7 +134,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     description:
       "Manage Inbox services and notification preferences for each project.",
     keywords:
-      "github gitlab linear jira atlassian azure devops connect token integration",
+      "github linear connect token integration",
   },
   {
     id: "archive",
@@ -175,12 +175,6 @@ export type SettingsEntry = {
 };
 
 export const SETTINGS_INDEX: SettingsEntry[] = [
-  {
-    id: "mobile-access",
-    section: "connections",
-    label: "Your phones",
-    keywords: "mobile phone iphone qr pair code router device",
-  },
   {
     id: "remote-machines",
     section: "connections",
@@ -234,7 +228,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
     id: "notifications",
     section: "general",
     label: "Notifications",
-    keywords: "notify alert toast permission reminder background",
+    keywords: "notify alert toast permission background",
   },
   {
     id: "notes",
@@ -482,31 +476,13 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
     id: "project-notifications",
     section: "inbox",
     label: "Project notifications",
-    keywords: "mute resume sounds banners reminders categories",
+    keywords: "mute resume sounds banners categories",
   },
   {
     id: "github",
     section: "inbox",
     label: "GitHub",
     keywords: "gh cli connect pull request sign in",
-  },
-  {
-    id: "gitlab",
-    section: "inbox",
-    label: "GitLab",
-    keywords: "token self-managed merge request connect",
-  },
-  {
-    id: "azuredevops",
-    section: "inbox",
-    label: "ADO",
-    keywords: "azure devops boards repos pull request pat organization connect",
-  },
-  {
-    id: "jira",
-    section: "inbox",
-    label: "Jira",
-    keywords: "atlassian cloud site email api token issues projects connect",
   },
   {
     id: "linear",

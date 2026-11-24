@@ -13,7 +13,6 @@ import {
   StickyNote,
   Terminal,
   X,
-  Zap,
 } from "../../shared/ui/icons";
 import {
   memo,
@@ -72,7 +71,6 @@ const APP_VIEW_ICONS = {
   search: Search,
   inbox: Inbox,
   notes: StickyNote,
-  automations: Zap,
 };
 
 export type Tab = {
@@ -144,7 +142,7 @@ type Props = {
   onToggleRightPanel?: () => void;
   /** The working tree has changes; dots the right panel toggle. */
   rightPanelDot?: boolean;
-  /** An app view (Search, Inbox, Notes, Automations) is shown, which has no
+  /** An app view (Search, Inbox, Notes) is shown, which has no
    * project files beside it. */
   rightPanelUnavailable?: boolean;
   canGoBack?: boolean;

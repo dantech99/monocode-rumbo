@@ -198,14 +198,9 @@ describe("filterInboxByKind", () => {
 });
 
 describe("filterInboxByProvider", () => {
-  it("keeps GitHub, GitLab, or Linear items", () => {
+  it("keeps GitHub or Linear items", () => {
     const rows = [
       item({ number: 1, updatedAt: "2026-08-27T10:00:00Z" }),
-      item({
-        number: 2,
-        provider: "gitlab",
-        updatedAt: "2026-08-27T10:00:00Z",
-      }),
       item({
         number: 9,
         kind: "linear",
@@ -219,9 +214,6 @@ describe("filterInboxByProvider", () => {
     expect(
       filterInboxByProvider(rows, "linear").map((row) => row.number),
     ).toEqual([9]);
-    expect(
-      filterInboxByProvider(rows, "gitlab").map((row) => row.number),
-    ).toEqual([2]);
   });
 });
 
@@ -360,29 +352,6 @@ describe("applyInboxFilters", () => {
       ).map((row) => row.number),
     ).toEqual([9]);
   });
-
-  it("ignores local project exclusions in GitLab's attention view", () => {
-    const gitlab = item({
-      number: 9,
-      provider: "gitlab",
-      repo: "acme/web",
-      projectPath: "/tmp/web",
-      updatedAt: "2026-08-27T10:00:00Z",
-    });
-    expect(
-      applyInboxFilters(
-        [gitlab],
-        {
-          ...DEFAULT_INBOX_FILTERS,
-          assignedToMe: true,
-          hiddenProjects: ["/tmp/web"],
-        },
-        "",
-        Date.now(),
-        "gitlab",
-      ),
-    ).toEqual([gitlab]);
-  });
 });
 
 describe("hasActiveInboxFilters", () => {
@@ -501,38 +470,26 @@ describe("visibleInboxSources", () => {
       visibleInboxSources({
         github: false,
         linear: false,
-        jira: false,
-        gitlab: false,
-        azuredevops: false,
       }),
     ).toEqual([]);
     expect(
       visibleInboxSources({
         github: true,
         linear: false,
-        jira: false,
-        gitlab: false,
-        azuredevops: false,
       }),
     ).toEqual(["github"]);
     expect(
       visibleInboxSources({
         github: false,
         linear: true,
-        jira: true,
-        gitlab: false,
-        azuredevops: false,
       }),
-    ).toEqual(["linear", "jira"]);
+    ).toEqual(["linear"]);
     expect(
       visibleInboxSources({
         github: true,
         linear: true,
-        jira: true,
-        gitlab: true,
-        azuredevops: true,
       }),
-    ).toEqual(["github", "linear", "jira", "gitlab", "azuredevops"]);
+    ).toEqual(["github", "linear"]);
   });
 
   it("keeps unresolved sources visible so tabs do not flash away", () => {
@@ -540,11 +497,8 @@ describe("visibleInboxSources", () => {
       visibleInboxSources({
         github: null,
         linear: null,
-        jira: null,
-        gitlab: null,
-        azuredevops: null,
       }),
-    ).toEqual(["github", "linear", "jira", "gitlab", "azuredevops"]);
+    ).toEqual(["github", "linear"]);
   });
 });
 
@@ -554,20 +508,14 @@ describe("connectableInboxSources", () => {
       connectableInboxSources({
         github: true,
         linear: false,
-        jira: false,
-        gitlab: true,
-        azuredevops: true,
       }),
-    ).toEqual(["linear", "jira"]);
+    ).toEqual(["linear"]);
     expect(
       connectableInboxSources({
         github: false,
         linear: false,
-        jira: false,
-        gitlab: false,
-        azuredevops: false,
       }),
-    ).toEqual(["github", "linear", "jira", "gitlab", "azuredevops"]);
+    ).toEqual(["github", "linear"]);
   });
 
   it("offers nothing while the checks are unresolved", () => {
@@ -575,9 +523,6 @@ describe("connectableInboxSources", () => {
       connectableInboxSources({
         github: null,
         linear: null,
-        jira: null,
-        gitlab: null,
-        azuredevops: null,
       }),
     ).toEqual([]);
   });
@@ -589,20 +534,14 @@ describe("resolveInboxSource", () => {
       resolveInboxSource("linear", {
         github: true,
         linear: false,
-        jira: false,
-        gitlab: true,
-        azuredevops: false,
       }),
     ).toBe("github");
     expect(
       resolveInboxSource("github", {
         github: false,
-        linear: false,
-        jira: false,
-        gitlab: true,
-        azuredevops: false,
+        linear: true,
       }),
-    ).toBe("gitlab");
+    ).toBe("linear");
   });
 
   it("keeps GitHub as an internal fallback when every source is disconnected", () => {
@@ -610,9 +549,6 @@ describe("resolveInboxSource", () => {
       resolveInboxSource("linear", {
         github: false,
         linear: false,
-        jira: false,
-        gitlab: false,
-        azuredevops: false,
       }),
     ).toBe("github");
   });
@@ -622,18 +558,12 @@ describe("resolveInboxSource", () => {
       resolveInboxSource("linear", {
         github: false,
         linear: true,
-        jira: true,
-        gitlab: false,
-        azuredevops: false,
       }),
     ).toBe("linear");
     expect(
       resolveInboxSource("github", {
         github: true,
         linear: false,
-        jira: false,
-        gitlab: false,
-        azuredevops: false,
       }),
     ).toBe("github");
   });
@@ -671,16 +601,10 @@ describe("inbox connection cache", () => {
     saveInboxConnections({
       github: true,
       linear: true,
-      jira: true,
-      gitlab: false,
-      azuredevops: false,
     });
     expect(loadInboxConnections()).toEqual({
       github: true,
       linear: true,
-      jira: true,
-      gitlab: false,
-      azuredevops: false,
     });
   });
 
@@ -688,9 +612,6 @@ describe("inbox connection cache", () => {
     expect(loadInboxConnections()).toEqual({
       github: null,
       linear: null,
-      jira: null,
-      gitlab: null,
-      azuredevops: null,
     });
   });
 
@@ -699,17 +620,11 @@ describe("inbox connection cache", () => {
     expect(loadInboxConnections()).toEqual({
       github: null,
       linear: null,
-      jira: null,
-      gitlab: null,
-      azuredevops: null,
     });
     localStorage.setItem(KEY, '{"linear":"yes"}');
     expect(loadInboxConnections()).toEqual({
       github: null,
       linear: null,
-      jira: null,
-      gitlab: null,
-      azuredevops: null,
     });
   });
 });

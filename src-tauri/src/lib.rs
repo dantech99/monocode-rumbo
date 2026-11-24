@@ -2,8 +2,6 @@ use tauri::Manager;
 
 mod account_identity;
 mod artifacts;
-mod automations;
-mod azure_devops;
 mod background_work;
 mod chat_background;
 mod checkpoint;
@@ -15,11 +13,9 @@ mod devin_config;
 mod devin_usage;
 mod external_editor;
 mod fs;
-mod gitlab;
 mod harness;
 mod harness_updates;
 mod inbox_media;
-mod jira;
 mod jsonc;
 mod linear;
 mod link_preview;
@@ -29,8 +25,6 @@ mod macos;
 mod macos_background;
 mod mcp;
 mod menu;
-mod mobile_access;
-mod mobile_router;
 mod mono;
 #[cfg(target_os = "macos")]
 mod mono_chat;
@@ -45,7 +39,6 @@ mod pty;
 #[cfg(target_os = "macos")]
 mod quick_composer;
 mod rate_limits;
-mod reminders;
 mod remote;
 mod remote_ssh;
 mod resources;
@@ -283,8 +276,6 @@ pub fn run() {
             harness::reap_orphaned_harness_processes();
             session_store::init(app.handle())?;
             control::init(app.handle())?;
-            mobile_access::init(app.handle())?;
-            reminders::init(app.handle());
             checkpoint::init(app.handle())?;
             menu::install(app.handle())?;
             #[cfg(target_os = "windows")]
@@ -311,14 +302,6 @@ pub fn run() {
             menu::dispatch(app, event.id().as_ref());
         })
         .invoke_handler(tauri::generate_handler![
-            mobile_access::mobile_status,
-            mobile_access::mobile_configure,
-            mobile_access::mobile_invite,
-            mobile_access::mobile_cancel_invite,
-            mobile_access::mobile_revoke,
-            mobile_access::mobile_publish,
-            mobile_access::mobile_reply,
-            mobile_access::mobile_push,
             remote::remote_machines,
             remote::remote_connect,
             remote::remote_disconnect,
@@ -345,22 +328,6 @@ pub fn run() {
             notifications::request_notification_permission,
             notifications::show_notification,
             notifications::open_notification_settings,
-            reminders::reminder_list,
-            reminders::reminder_set,
-            reminders::reminder_clear,
-            reminders::reminder_configure,
-            reminders::reminder_take_open,
-            reminders::reminder_register_window,
-            reminders::reminder_open,
-            automations::automations_list,
-            automations::automations_upsert,
-            automations::automations_delete,
-            automations::automation_runs_list,
-            automations::automation_runs_recover,
-            automations::automation_run_now,
-            automations::automations_claim_due,
-            automations::automations_claim_event,
-            automations::automation_run_update,
             external_editor::list_external_editors,
             external_editor::open_in_external_editor,
             fs::resolve_project_location,
@@ -406,24 +373,6 @@ pub fn run() {
             fs::git_github_pr_checks,
             fs::git_github_check_details,
             inbox_media::fetch_inbox_media,
-            gitlab::gitlab_status,
-            gitlab::gitlab_set_config,
-            gitlab::gitlab_repo,
-            gitlab::gitlab_list_work_items,
-            gitlab::gitlab_list_todos,
-            gitlab::gitlab_work_item_details,
-            gitlab::gitlab_work_item_thread,
-            gitlab::gitlab_work_item_comment,
-            gitlab::gitlab_mr_diff,
-            azure_devops::azure_devops_status,
-            azure_devops::azure_devops_set_config,
-            azure_devops::azure_devops_repo,
-            azure_devops::azure_devops_list_work_items,
-            azure_devops::azure_devops_list_todos,
-            azure_devops::azure_devops_work_item_details,
-            azure_devops::azure_devops_work_item_thread,
-            azure_devops::azure_devops_work_item_comment,
-            azure_devops::azure_devops_mr_diff,
             linear::linear_status,
             linear::linear_set_token,
             linear::linear_list_teams,
@@ -431,13 +380,6 @@ pub fn run() {
             linear::linear_issue_details,
             linear::linear_issue_thread,
             linear::linear_issue_comment,
-            jira::jira_status,
-            jira::jira_set_config,
-            jira::jira_list_projects,
-            jira::jira_list_issues,
-            jira::jira_issue_details,
-            jira::jira_issue_thread,
-            jira::jira_issue_comment,
             link_preview::fetch_link_preview,
             fs::git_branches,
             fs::git_checkout,
@@ -472,8 +414,6 @@ pub fn run() {
             fs::save_generated_image,
             fs::delete_generated_images,
             fs::read_text_file,
-            fs::mobile_list_dir,
-            fs::mobile_read_text_file,
             fs::omp_session_interjections,
             fs::omp_active_assistant_texts,
             fs::claude_shell_commands,

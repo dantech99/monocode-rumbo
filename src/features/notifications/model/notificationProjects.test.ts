@@ -10,18 +10,19 @@ import {
 
 beforeEach(() => localStorage.clear());
 
-it("groups Jira notification preferences by site and stable project ID", () => {
+it("groups Linear notification preferences by stable project ID", () => {
   const item = {
-    provider: "jira" as const, repo: "ENG", teamId: "10000",
-    teamName: "Engineering", url: "https://acme.atlassian.net/browse/ENG-42",
+    provider: "linear" as const, repo: "ENG", projectId: "roadmap",
+    projectName: "Roadmap", teamId: "10000", teamName: "Engineering",
+    url: "https://linear.app/acme/issue/ENG-42",
   };
   const project = inboxNotificationProject(item);
   expect(project).toEqual({
-    id: "jira:acme.atlassian.net:project:10000", name: "Engineering",
-    detail: "Jira · acme.atlassian.net", kind: "jira", paths: [],
+    id: "linear:project:roadmap", name: "Roadmap",
+    detail: "Linear · Engineering", kind: "linear", paths: [],
   });
-  expect(inboxNotificationProject({ ...item, repo: "RENAMED", url: "https://acme.atlassian.net/browse/RENAMED-1" }).id).toBe(project.id);
-  expect(inboxNotificationProject({ ...item, url: "https://other.atlassian.net/browse/ENG-42" }).id).not.toBe(project.id);
+  expect(inboxNotificationProject({ ...item, repo: "RENAMED", url: "https://linear.app/acme/issue/RENAMED-1" }).id).toBe(project.id);
+  expect(inboxNotificationProject({ ...item, projectId: "other" }).id).not.toBe(project.id);
   rememberNotificationProjects([project]);
   expect(loadNotificationProjects()).toContainEqual(project);
 });

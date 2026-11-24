@@ -9,7 +9,6 @@ import {
   Plus,
   Search,
   Settings,
-  Zap,
 } from "../../shared/ui/icons";
 import { RailAction } from "./RailAction";
 
@@ -29,13 +28,11 @@ export function ProjectSessionColumn({
   searchActive,
   inboxActive,
   notesActive,
-  automationsActive,
   inboxUnseen,
   onSearch,
   onOpenInbox,
   onOpenInboxMenu,
   onOpenNotes,
-  onOpenAutomations,
   onOpenProject,
   onOpenSettings,
   onSelectProject,
@@ -52,13 +49,11 @@ export function ProjectSessionColumn({
   searchActive: boolean;
   inboxActive: boolean;
   notesActive: boolean;
-  automationsActive: boolean;
   inboxUnseen: boolean;
   onSearch: () => void;
   onOpenInbox: () => void;
   onOpenInboxMenu?: (x: number, y: number) => void;
   onOpenNotes?: () => void;
-  onOpenAutomations: () => void;
   onOpenProject: () => void;
   onOpenSettings: () => void;
   onSelectProject: (path: string) => void;
@@ -100,12 +95,6 @@ export function ProjectSessionColumn({
             active={notesActive}
           />
         ) : null}
-        <RailAction
-          label="Automations"
-          icon={Zap}
-          onClick={onOpenAutomations}
-          active={automationsActive}
-        />
       </div>
       {showList ? (
         <>
