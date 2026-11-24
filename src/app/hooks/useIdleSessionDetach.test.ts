@@ -212,7 +212,7 @@ async function advance(milliseconds = 250) {
   await flushSessionWrites();
 }
 
-it("keeps the resident conversation mounted independently of ordinary tabs", async () => {
+it("detaches an idle session that is not on a tab, even when it was a Mono", async () => {
   const agent = chat("resident");
   const values = new Map<string, string>();
   vi.stubGlobal("localStorage", {
@@ -230,11 +230,9 @@ it("keeps the resident conversation mounted independently of ordinary tabs", asy
   });
   await advance();
   expect(workspace.snapshot().sessions.map((session) => session.id)).toEqual([
-    "resident",
     "other",
   ]);
-  expect(workspace.persistSession).not.toHaveBeenCalled();
-  expect(mocks.forgetHarnessSession).not.toHaveBeenCalled();
+  expect(workspace.persistSession).toHaveBeenCalled();
 });
 
 describe("orchestration worker detachment", () => {

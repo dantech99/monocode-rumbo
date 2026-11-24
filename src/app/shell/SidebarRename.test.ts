@@ -11,10 +11,7 @@ import {
 } from "../../features/sessions/model/sessionFolders";
 import { useProjectDiffStats } from "../../features/source-control/hooks/useProjectDiffStats";
 import { copyText } from "../../platform/tauri/clipboard";
-import {
-  createMono,
-  saveMonoSessionId,
-} from "../../features/monos/model/mono";
+import { createMono } from "../../features/monos/model/mono";
 
 // Keep native services out of these menu/input interaction tests.
 vi.mock("../../features/source-control/hooks/useProjectDiffStats", () => ({
@@ -369,23 +366,6 @@ describe("inset session previews", () => {
     act(() => transcript.dispatchEvent(new Event("scroll")));
     expect(preview()).not.toBeNull();
   });
-});
-
-it("leaves the resident agent and its description out of the session list", () => {
-  saveMonoSessionId(createMono(["/workspace/project"]).id, "resident");
-  props.sessions = [
-    ...props.sessions,
-    {
-      ...props.sessions[0],
-      id: "resident",
-      title: "Resident agent description",
-    },
-  ];
-  act(() => render());
-  expect(card()).not.toBeNull();
-  expect(container.querySelector('[data-session-card="resident"]')).toBeNull();
-  expect(container.querySelector("[data-mono]")).toBeNull();
-  expect(container.textContent).not.toContain("Resident agent description");
 });
 
 it("omits hidden Mono launches from history, open sessions and folders", () => {
