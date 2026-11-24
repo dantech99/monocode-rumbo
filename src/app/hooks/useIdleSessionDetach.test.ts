@@ -27,10 +27,6 @@ import {
   type WorkspaceTab,
 } from "../../features/workspace/model/layout";
 import { useIdleSessionDetach } from "./useIdleSessionDetach";
-import {
-  createMono,
-  saveMonoSessionId,
-} from "../../features/monos/model/mono";
 
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
@@ -212,14 +208,8 @@ async function advance(milliseconds = 250) {
   await flushSessionWrites();
 }
 
-it("detaches an idle session that is not on a tab, even when it was a Mono", async () => {
+it("detaches an idle session that is not on a tab", async () => {
   const agent = chat("resident");
-  const values = new Map<string, string>();
-  vi.stubGlobal("localStorage", {
-    getItem: (key: string) => values.get(key) ?? null,
-    setItem: (key: string, value: string) => values.set(key, value),
-  });
-  saveMonoSessionId(createMono([agent.cwd]).id, agent.id);
   const workspace = mountWorkspace({
     sessions: [agent, chat("other")],
     tabs: [newTab("other")],

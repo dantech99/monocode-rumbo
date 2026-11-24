@@ -67,16 +67,12 @@ import { TerminalSpinner } from "./TerminalSpinner";
 import { Popover } from "../../../shared/ui/Popover";
 import { ProjectMascot } from "../../projects/ui/ProjectMascot";
 import { PixelMascot } from "../../projects/ui/PixelMascot";
-import type { MonoLook } from "../../monos/model/mono";
-import {
-  launchAnchors,
-  monoSpawnedSessions,
-  type LaunchedSessionView,
-} from "../../monos/model/monoSpawnedSessions";
-import type { MonoSpawnedSession } from "../model/session";
-import { LaunchedSessionCard } from "../../monos/ui/LaunchedSessionCard";
-import type { MessageDelivery } from "../../monos/model/monoMessaging";
-import { monoReactionBlocks } from "../../monos/model/monoReaction";
+/** How an outbox message is doing, for the retry affordance on its bubble. */
+type MessageDelivery = {
+  status: "pending" | "paused" | "failed";
+  error?: string;
+};
+type MonoLook = { mascot: string; color: string };
 import type { ApprovalDecision } from "../../../integrations/harness";
 import {
   isHarnessAuthError,
@@ -236,12 +232,6 @@ type Props = {
   /** Inspect a Mono turn in the activity sidebar. */
   onShowWork?: (turnId: string, blocks: Block[]) => void;
   activeWorkTurnId?: string;
-  /** Open one of a Mono turn's launched sessions in the sidebar. */
-  onOpenSession?: (turnId: string, blocks: Block[], sessionId: string) => void;
-  /** Launched sessions' live status by id, where this window tracks it. */
-  launchedSessions?: ReadonlyMap<string, LaunchedSessionView>;
-  /** The launched session open in the sidebar. */
-  openSessionId?: string;
   /** Marks when each message was sent, for one conversation kept over days. */
   daySeparators?: boolean;
   /** Leaves token and speed details out of each turn's footer. */
@@ -308,9 +298,6 @@ function AgentTranscriptComponent({
   onRetryMessage,
   onShowWork,
   activeWorkTurnId,
-  onOpenSession,
-  launchedSessions,
-  openSessionId,
   daySeparators = false,
   hideTurnMetrics = false,
   harness,
@@ -347,10 +334,7 @@ function AgentTranscriptComponent({
 }: Props) {
   const isMonoChat = !!agentMascot;
   const blocks = useMemo(() => {
-    // A Mono's reaction sits on the message it answers, not in a bubble.
-    const chatBlocks = isMonoChat
-      ? monoReactionBlocks(sourceBlocks)
-      : sourceBlocks;
+    const chatBlocks = sourceBlocks;
     if (!harness || !supportsHarnessLogin(harness)) return chatBlocks;
     const visibleBlocks = chatBlocks.filter(
       (block) =>
@@ -363,7 +347,7 @@ function AgentTranscriptComponent({
     return visibleBlocks.length === chatBlocks.length
       ? chatBlocks
       : visibleBlocks;
-  }, [harness, isMonoChat, sourceBlocks]);
+  }, [harness, sourceBlocks]);
   const editableUserBlockId = useMemo(
     () => lastUserTurnBlock(blocks)?.id,
     [blocks],
@@ -1260,33 +1244,6 @@ function AgentTranscriptComponent({
           // Work the turn has already answered for folds away behind one line,
           // leaving the prompt and the answer to it.
           const turnId = turn[0].id;
-          const spawnedSessions = inlineWork ? monoSpawnedSessions(turn) : [];
-          const launchCards = launchAnchors(items, spawnedSessions);
-          const renderLaunches = (
-            launches: readonly MonoSpawnedSession[],
-            key: string,
-            spacing: string,
-          ) => (
-            <div
-              key={key}
-              data-launched-sessions
-              className={`flex flex-col gap-2 px-4 pt-1 ${spacing}`}
-            >
-              {launches.map((launch) => (
-                <LaunchedSessionCard
-                  key={launch.sessionId}
-                  launch={launch}
-                  view={launchedSessions?.get(launch.sessionId)}
-                  open={openSessionId === launch.sessionId}
-                  onOpen={
-                    onOpenSession
-                      ? () => onOpenSession(turnId, turn, launch.sessionId)
-                      : undefined
-                  }
-                />
-              ))}
-            </div>
-          );
           const fold = inlineWork ? undefined : foldableWork(items);
           const folded = fold ? foldedBlocks(items, fold) : [];
           const summarizedWork = inlineWork
@@ -1650,26 +1607,8 @@ function AgentTranscriptComponent({
                       {renderItem(item, itemIndex)}
                     </div>
                   );
-                  // A launch's cards follow the reply after it once that reply
-                  // has finished streaming (CSS holds them through its fade).
-                  // That never reverts, so a report back reopening the turn
-                  // does not take them away again.
-                  const launches = launchCards.afterItem.get(itemIndex);
-                  const cards =
-                    launches &&
-                    (settled ||
-                      itemIndex < items.length - 1 ||
-                      (item.type === "block" && !item.block.streaming))
-                      ? [
-                          renderLaunches(
-                            launches,
-                            `launches-${turnItemKey(item)}`,
-                            "pb-3",
-                          ),
-                        ]
-                      : [];
-                  if (itemIndex !== foldLineAt) return [row, ...cards];
-                  return [foldLineRow, row, ...cards];
+                  if (itemIndex !== foldLineAt) return row;
+                  return [foldLineRow, row];
                 })
                 .concat(foldLineAt >= items.length ? [foldLineRow] : [])}
               {settled &&
@@ -1684,14 +1623,6 @@ function AgentTranscriptComponent({
                       <OrchestrationPreview block={block} busy={!!busy} />
                     </div>
                   ))}
-              {/* Launches no reply followed wait for the turn to end. */}
-              {settled && launchCards.atEnd.length > 0
-                ? renderLaunches(
-                    launchCards.atEnd,
-                    "launches-end",
-                    artifacts.length > 0 ? "pb-1" : "pb-3",
-                  )
-                : null}
               {settled && artifacts.length > 0 ? (
                 <div
                   data-artifact-results

@@ -394,12 +394,9 @@ export type Block = {
   statusKey?: string;
   /** Posted to a Mono's chat by one of its habits, outside any turn. */
   monoHabit?: { id: string; name: string; at: number };
-  /** A card a Mono put in its chat; see `features/monos/model/monoCards`. */
-  monoCard?: import("../../monos/model/monoCards").MonoCard;
-  /**
-   * The emoji a Mono answered this user message with. Drawn from its reply
-   * when the chat renders; see `features/monos/model/monoReaction`.
-   */
+  /** Left over from the removed Mono feature; stored but never read. */
+  monoCard?: unknown;
+  /** Left over from the removed Mono feature; stored but never read. */
   monoReaction?: string;
 };
 

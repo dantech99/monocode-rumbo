@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { displayAttachments } from "../../../features/sessions/model/attachments";
+import { dequeueQueuedMessage } from "../../../features/sessions/model/messageQueue";
 import {
   newSession,
+  type Attachment,
+  type QueuedMessage,
   type Session,
 } from "../../../features/sessions/model/session";
 import { planTurnKey } from "../../../features/sessions/model/plan";
 import { sanitizeSessionForPersist } from "../../../features/sessions/data/sessionStore";
-import {
-  acknowledgeMonoMessage,
-  enqueueMonoMessage,
-} from "../../../features/monos/model/monoMessaging";
 import { previewFromTool } from "../providers/claude/claudeProtocol";
 import {
   appendUser,
@@ -17,6 +17,72 @@ import {
   promoteLastAssistantToPlan,
   stopStreaming,
 } from "./apply";
+
+type UserCards = Parameters<typeof appendUser>[3];
+
+/** Show the message now; the outbox only controls its delivery. */
+export function enqueueMonoMessage(
+  session: Session,
+  message: QueuedMessage,
+  cards?: UserCards,
+): Session {
+  const appended = appendSteerUser(
+    session,
+    message.text,
+    displayAttachments(message.attachments),
+    cards,
+  );
+  const bubble = {
+    ...appended.blocks[appended.blocks.length - 1],
+    id: message.id,
+  };
+  return {
+    ...session,
+    blocks: [...session.blocks, bubble],
+    queuedMessages: [
+      ...(session.queuedMessages ?? []),
+      { ...message, blockId: bubble.id },
+    ],
+    queueStatus: session.queueStatus === "paused" ? "paused" : "active",
+  };
+}
+
+/** Acknowledgement updates the existing bubble instead of appending it again. */
+export function acknowledgeMonoMessage(
+  session: Session,
+  message: QueuedMessage,
+  options: {
+    mode: "follow-up" | "new-turn";
+    text?: string;
+    attachments?: Attachment[];
+    cards?: UserCards;
+  },
+): Session {
+  const remaining = dequeueQueuedMessage(session, message.id);
+  const append = options.mode === "new-turn" ? appendUser : appendSteerUser;
+  const appended = append(
+    remaining,
+    options.text ?? message.text,
+    options.attachments ?? displayAttachments(message.attachments),
+    options.cards,
+  );
+  const accepted = appended.blocks[appended.blocks.length - 1];
+  const blocks = message.blockId
+    ? remaining.blocks.map((block) =>
+        block.id === message.blockId
+          ? {
+              ...block,
+              ...accepted,
+              id: block.id,
+              sentAt: block.sentAt ?? accepted.sentAt,
+            }
+          : block,
+      )
+    : [...remaining.blocks, { ...accepted, id: message.id }];
+  return options.mode === "new-turn"
+    ? { ...appended, blocks }
+    : { ...remaining, blocks };
+}
 
 let now = 0;
 

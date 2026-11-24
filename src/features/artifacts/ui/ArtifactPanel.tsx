@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import { Copy, PanelRightToggle, Trash2 } from "../../../shared/ui/icons";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  ChevronLeft,
+  Copy,
+  PanelRightToggle,
+  Trash2,
+} from "../../../shared/ui/icons";
 import { copyMessage } from "../../../platform/tauri/clipboard";
 import { IconButton } from "../../../app/shell/TitleBar";
-import { MonoSidebarHeader } from "../../monos/ui/MonoSidebar";
-import { PageHeader } from "../../monos/ui/monoPanelParts";
 import { artifactLabel, deleteArtifact } from "../artifacts";
 import { ArtifactContent, useArtifact } from "./ArtifactContent";
 
@@ -93,7 +96,7 @@ export function ArtifactReader({
           </IconButton>
         </PageHeader>
       ) : (
-        <MonoSidebarHeader title={label} onClose={onClose} actions={actions} />
+        <PanelHeader title={label} onClose={onClose} actions={actions} />
       )}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-none px-4 py-3">
         {!loaded ? (
@@ -123,5 +126,71 @@ export function ArtifactReader({
         )}
       </div>
     </>
+  );
+}
+
+/** The panel's own header: a title, optional actions and a hide button. */
+function PanelHeader({
+  title,
+  onClose,
+  actions,
+}: {
+  title: string;
+  onClose: () => void;
+  actions?: ReactNode;
+}) {
+  return (
+    <header
+      className="flex h-10 shrink-0 items-stretch border-b border-stroke"
+      style={{ paddingRight: "var(--mono-window-controls-width)" }}
+      data-tauri-drag-region="deep"
+    >
+      <h3 className="flex min-w-0 flex-1 items-center pl-4 text-[13px] font-medium text-content">
+        {title}
+      </h3>
+      <div className="flex shrink-0 items-center gap-0.5 px-3">
+        {actions}
+        <IconButton
+          label={`Hide ${title.toLowerCase()}`}
+          active
+          onClick={onClose}
+        >
+          <PanelRightToggle className="size-3.5" strokeWidth={1.75} />
+        </IconButton>
+      </div>
+    </header>
+  );
+}
+
+/** A page's header: a back button, the title and optional actions. */
+function PageHeader({
+  title,
+  onBack,
+  children,
+}: {
+  title: ReactNode;
+  onBack?: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <header
+      className={`flex h-10 shrink-0 items-center gap-1 border-b border-stroke ${
+        onBack ? "pl-2" : "pl-4"
+      }`}
+      style={{
+        paddingRight: "calc(0.75rem + var(--mono-window-controls-width, 0px))",
+      }}
+      data-tauri-drag-region="deep"
+    >
+      {onBack ? (
+        <IconButton label="Back" onClick={onBack}>
+          <ChevronLeft className="size-3.5" strokeWidth={1.75} />
+        </IconButton>
+      ) : null}
+      <h3 className="min-w-0 flex-1 truncate text-[13px] font-medium text-content">
+        {title}
+      </h3>
+      {children}
+    </header>
   );
 }
