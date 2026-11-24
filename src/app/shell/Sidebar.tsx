@@ -37,7 +37,6 @@ import {
   Share,
   Settings,
   StickyNote,
-  Zap,
   type IconComponent,
 } from "../../shared/ui/icons";
 import { createPortal } from "react-dom";
@@ -358,12 +357,10 @@ type Props = {
   onOpenInbox?: () => void;
   onOpenInboxItem?: (item: LinkedWorkItem, sessionId: string) => void;
   onOpenNotes?: () => void;
-  onOpenAutomations?: () => void;
   onGoToFile?: () => void;
   searchActive?: boolean;
   inboxActive?: boolean;
   notesActive?: boolean;
-  automationsActive?: boolean;
   notesEnabled?: boolean;
   onToggleProjectRail?: () => void;
   projectRailOpen?: boolean;
@@ -467,12 +464,10 @@ function SidebarComponent({
   onOpenInbox,
   onOpenInboxItem,
   onOpenNotes,
-  onOpenAutomations,
   onGoToFile,
   searchActive = false,
   inboxActive = false,
   notesActive = false,
-  automationsActive = false,
   notesEnabled = true,
   onToggleProjectRail,
   projectRailOpen = true,
@@ -954,7 +949,6 @@ function SidebarComponent({
     searchActive ||
     inboxActive ||
     notesActive ||
-    automationsActive ||
     settingsOpen;
   // A remembered Mono sits underneath these views; select it only while visible.
   const railMonos = monos
@@ -2389,12 +2383,6 @@ function SidebarComponent({
             active: notesActive,
             onClick: onOpenNotes,
           },
-        onOpenAutomations && {
-          label: "Automations",
-          icon: Zap,
-          active: automationsActive,
-          onClick: onOpenAutomations,
-        },
       ]}
     />
   ) : null;
@@ -2537,11 +2525,9 @@ function SidebarComponent({
               onOpenInbox={onOpenInbox}
               onOpenNotificationSettings={onOpenNotificationSettings}
               onOpenNotes={notesEnabled ? onOpenNotes : undefined}
-              onOpenAutomations={onOpenAutomations}
               searchActive={searchActive}
               inboxActive={inboxActive}
               notesActive={notesActive}
-              automationsActive={automationsActive}
               inboxUnseen={inboxUnseen}
             />
           ) : null}
@@ -3138,8 +3124,6 @@ function SidebarComponent({
           onOpenNotificationSettings={onOpenNotificationSettings}
           onOpenNotes={notesEnabled ? onOpenNotes : undefined}
           notesActive={notesActive}
-          onOpenAutomations={onOpenAutomations}
-          automationsActive={automationsActive}
           onOpenSettings={onOpenSettings}
           onTogglePanel={onToggleProjectRail}
           onLeaveActive={onGoBack}
@@ -3172,8 +3156,6 @@ function SidebarComponent({
           notesEnabled={notesEnabled}
           onOpenNotes={onOpenNotes}
           notesActive={notesActive}
-          onOpenAutomations={onOpenAutomations}
-          automationsActive={automationsActive}
           onTogglePanel={onToggleProjectRail}
           onSelectProject={onSelectProject}
           onOpenProject={onOpenProject}
@@ -3316,11 +3298,9 @@ function SidebarProjectPicker({
   onOpenInbox,
   onOpenNotificationSettings,
   onOpenNotes,
-  onOpenAutomations,
   searchActive = false,
   inboxActive = false,
   notesActive = false,
-  automationsActive = false,
   inboxUnseen = false,
 }: {
   cwd: string;
@@ -3334,11 +3314,9 @@ function SidebarProjectPicker({
   onOpenInbox?: () => void;
   onOpenNotificationSettings?: (projectPath?: string) => void;
   onOpenNotes?: () => void;
-  onOpenAutomations?: () => void;
   searchActive?: boolean;
   inboxActive?: boolean;
   notesActive?: boolean;
-  automationsActive?: boolean;
   inboxUnseen?: boolean;
 }) {
   const [inboxMenu, setInboxMenu] = useState<{ x: number; y: number } | null>(
@@ -3404,15 +3382,6 @@ function SidebarProjectPicker({
             <StickyNote className="size-3.5" strokeWidth={1.75} />
           </IconButton>
         ) : null}
-        {onOpenAutomations ? (
-          <IconButton
-            label="Automations"
-            active={automationsActive}
-            onClick={onOpenAutomations}
-          >
-            <Zap className="size-3.5" strokeWidth={1.75} />
-          </IconButton>
-        ) : null}
       </div>
       {inboxMenu ? (
         <InboxNotificationMenu
@@ -3453,8 +3422,6 @@ function CompactProjectRail({
   onOpenNotificationSettings,
   onOpenNotes,
   notesActive,
-  onOpenAutomations,
-  automationsActive,
   onOpenSettings,
   onTogglePanel,
   onLeaveActive,
@@ -3486,8 +3453,6 @@ function CompactProjectRail({
   onOpenNotificationSettings?: (projectPath?: string) => void;
   onOpenNotes?: () => void;
   notesActive: boolean;
-  onOpenAutomations?: () => void;
-  automationsActive: boolean;
   onOpenSettings?: () => void;
   onTogglePanel?: () => void;
   onLeaveActive?: () => void;
@@ -3528,7 +3493,6 @@ function CompactProjectRail({
     !searchActive &&
     !inboxActive &&
     !notesActive &&
-    !automationsActive &&
     !monoViewActive;
   const openWorkspaceTab = (nextTab: SidebarTab) => {
     if (!workspaceActive) onLeaveActive?.();
@@ -3674,12 +3638,6 @@ function CompactProjectRail({
             onClick={action(notesActive, onOpenNotes)}
           />
         ) : null}
-        <CompactRailAction
-          label="Automations"
-          icon={Zap}
-          active={automationsActive}
-          onClick={action(automationsActive, onOpenAutomations)}
-        />
       </div>
       <div className="min-h-2 flex-1" />
       <div className="flex w-full flex-col items-center gap-1 py-1.5">
@@ -4475,7 +4433,7 @@ function FolderRow({
         dropTarget
           ? "text-content"
           : dense
-            ? // Muted like the links above it, Search through Automations.
+            ? // Muted like the links above it, Search through Notes.
               "text-content/50 hover:bg-content/10 hover:text-content"
             : expanded
               ? "text-content hover:bg-content/10"
@@ -5257,17 +5215,6 @@ export const SessionCard = memo(function SessionCard({
                   {linkedUpdateDot}
                   {workItemBadge}
                   {modeBadge}
-                  {session.automationId ? (
-                    <span
-                      data-automation-icon
-                      role="img"
-                      title="Started by an automation"
-                      aria-label="Started by an automation"
-                      className="grid size-4 shrink-0 place-items-center text-amber-400"
-                    >
-                      <Zap className="size-3" strokeWidth={1.75} />
-                    </span>
-                  ) : null}
                   {onArchive ? (
                     <button
                       type="button"
@@ -5429,17 +5376,6 @@ export const SessionCard = memo(function SessionCard({
                   </button>
                 ) : null}
                 {workItemBadge}
-                {session.automationId ? (
-                  <span
-                    data-automation-icon
-                    role="img"
-                    title="Started by an automation"
-                    aria-label="Started by an automation"
-                    className="grid size-5 -mr-1 shrink-0 place-items-center text-amber-400"
-                  >
-                    <Zap className="size-3" strokeWidth={1.75} />
-                  </span>
-                ) : null}
                 {orchestration ? (
                   <div
                     ref={orchestrationTooltipRootRef}

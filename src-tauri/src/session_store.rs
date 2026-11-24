@@ -1006,7 +1006,6 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
                         is_draft, automation_id, sidebar_hidden);",
     )?;
     crate::notes::ensure_notes_table(conn)?;
-    crate::automations::ensure_tables(conn)?;
     ensure_orchestration_history(conn)?;
     crate::mono_transcript::ensure_tables(conn)?;
     Ok(())

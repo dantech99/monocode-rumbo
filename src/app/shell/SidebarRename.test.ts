@@ -489,7 +489,6 @@ describe.each([false, true])("Mono rail selection (compact: %s)", (compact) => {
   it.each([
     ["Inbox", "inboxActive", "onOpenInbox"],
     ["Notes", "notesActive", "onOpenNotes"],
-    ["Automations", "automationsActive", "onOpenAutomations"],
     ["Search", "searchActive", "onSearch"],
   ] as const)("selects only %s while it covers a Mono", async (label, active, open) => {
     const mono = createMono();
@@ -538,7 +537,6 @@ describe.each([false, true])("Mono rail selection (compact: %s)", (compact) => {
 it.each([
   "inboxActive",
   "notesActive",
-  "automationsActive",
   "searchActive",
 ] as const)("does not show the covered inset session selected while %s", async (active) => {
   const selected = () =>
@@ -1483,22 +1481,6 @@ describe("sidebar orchestration card", () => {
   });
 });
 
-describe("sidebar automation card", () => {
-  it("shows a bolt on sessions started by an automation", () => {
-    props.busySessionIds = new Set();
-    props.sessions[0].automationId = "automation-1";
-    act(() => render());
-    const icon = card().querySelector("[data-automation-icon]");
-    expect(icon).not.toBeNull();
-    expect(icon?.tagName).toBe("SPAN");
-    expect(icon?.getAttribute("aria-label")).toBe("Started by an automation");
-    expect(card().querySelector("[data-orchestration-icon]")).toBeNull();
-    expect(
-      card().querySelector("[data-session-select] [data-automation-icon]"),
-    ).toBeNull();
-  });
-});
-
 describe("sidebar linked work item updates", () => {
   it("opens a linked item beside the session that owns it", () => {
     props.busySessionIds = new Set();
@@ -1772,7 +1754,6 @@ describe("collapsed rail Inbox actions", () => {
       "Search",
       "Inbox",
       "Notes",
-      "Automations",
       "Settings",
     ]);
     const workspaceTabs = rail.querySelector<HTMLElement>(

@@ -2,7 +2,6 @@ use tauri::Manager;
 
 mod account_identity;
 mod artifacts;
-mod automations;
 mod azure_devops;
 mod background_work;
 mod chat_background;
@@ -343,15 +342,6 @@ pub fn run() {
             notifications::request_notification_permission,
             notifications::show_notification,
             notifications::open_notification_settings,
-            automations::automations_list,
-            automations::automations_upsert,
-            automations::automations_delete,
-            automations::automation_runs_list,
-            automations::automation_runs_recover,
-            automations::automation_run_now,
-            automations::automations_claim_due,
-            automations::automations_claim_event,
-            automations::automation_run_update,
             external_editor::list_external_editors,
             external_editor::open_in_external_editor,
             fs::resolve_project_location,
