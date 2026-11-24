@@ -234,7 +234,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
     id: "notifications",
     section: "general",
     label: "Notifications",
-    keywords: "notify alert toast permission reminder background",
+    keywords: "notify alert toast permission background",
   },
   {
     id: "notes",
@@ -482,7 +482,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
     id: "project-notifications",
     section: "inbox",
     label: "Project notifications",
-    keywords: "mute resume sounds banners reminders categories",
+    keywords: "mute resume sounds banners categories",
   },
   {
     id: "github",

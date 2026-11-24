@@ -579,8 +579,6 @@ import {
 import { syncDockBadge } from "../features/notifications/model/dockBadge";
 import { liveAgentsFromSessions } from "../features/sessions/model/liveAgents";
 import { hiddenApprovalNotices } from "../features/notifications/model/approvalToast";
-import { useSessionReminders } from "../features/notifications/hooks/useSessionReminders";
-import { ReminderNotices } from "../features/sessions/ui/ReminderNotices";
 import { useUnseenFinishedSessions } from "../features/sessions/hooks/useUnseenFinishedSessions";
 import { useUnseenReplyCounts } from "../features/sessions/hooks/useUnseenReplyCounts";
 import {
@@ -2414,7 +2412,6 @@ function Workspace({
       monoCovers,
     ],
   );
-  const [reminderNoticesHeight, setReminderNoticesHeight] = useState(0);
   const [harnessUpdateHeight, setHarnessUpdateHeight] = useState(0);
   const [newLayoutNoticeHeight, setNewLayoutNoticeHeight] = useState(0);
   // The footer's slot for the resource pressure chip. Monitoring continues
@@ -5308,52 +5305,8 @@ function Workspace({
     [showMonoLaunchedSession],
   );
 
-  const openReminderSession = useCallback(
-    async (sessionId: string) => {
-      const session = await ensureOpenSession(sessionId);
-      if (!session)
-        throw new Error("This conversation is no longer available.");
-      setSearchViewOpen(false);
-      setInboxViewOpen(false);
-      setNotesViewOpen(false);
-      setAutomationsViewOpen(false);
-      setSettingsOpen(false);
-      setFilePickerOpen(false);
-      setSidebarTab("sessions", session.cwd);
-      setProjectCwd(session.cwd);
-      setRecents(rememberProject(session.cwd));
-      await onSelectHistorySession(sessionId);
-    },
-    [ensureOpenSession, onSelectHistorySession],
-  );
-
-  const ensureReminderSessionsSaved = useCallback(
-    async (ids: readonly string[]) => {
-      for (const id of ids) {
-        const session = sessionsRef.current.find(
-          (session) => session.id === id,
-        );
-        if (session && !(await upsertSession(session))) {
-          throw new Error(
-            "Send a message in this conversation before setting a reminder.",
-          );
-        }
-      }
-    },
-    [],
-  );
-
-  const sessionReminders = useSessionReminders(
-    openReminderSession,
-    ensureReminderSessionsSaved,
-    sessions
-      .filter((session) => !session.inboxAsk)
-      .map((session) => session.id),
-  );
-
   const dismissNoticesForContinuedSession = useCallback(
     (sessionId: string) => {
-      void sessionReminders.dismissDue(sessionId);
       const updatedAt = sessionsRef.current.find(
         (session) => session.id === sessionId,
       )?.linkedWorkItemUpdateCard?.updatedAt;
@@ -5363,7 +5316,7 @@ function Workspace({
         card?.updatedAt === updatedAt ? undefined : card,
       );
     },
-    [sessionReminders.dismissDue, setLinkedWorkItemUpdateCard],
+    [setLinkedWorkItemUpdateCard],
   );
 
   const onPlaceSessionOnPane = useCallback(
@@ -14053,9 +14006,6 @@ function Workspace({
       onPinSession={onPinHistorySession}
       onPinSessions={onPinHistorySessions}
       onSetSessionLinkedWorkItem={onSetHistorySessionLinkedWorkItem}
-      reminders={sessionReminders.reminders}
-      onSetReminders={sessionReminders.schedule}
-      onCancelReminders={sessionReminders.cancel}
       onDeleteSession={onDeleteHistorySession}
       onDeleteSessions={onDeleteHistorySessions}
       onOpenFile={onOpenFile}
@@ -14737,15 +14687,12 @@ function Workspace({
             />
           )}
           <HarnessUpdateNotice
-            topOffset={
-              12 + (reminderNoticesHeight ? reminderNoticesHeight + 8 : 0)
-            }
+            topOffset={12}
             onHeightChange={setHarnessUpdateHeight}
           />
           <NewLayoutNotice
             topOffset={
               12 +
-              (reminderNoticesHeight ? reminderNoticesHeight + 8 : 0) +
               (harnessUpdateHeight ? harnessUpdateHeight + 8 : 0)
             }
             onHeightChange={setNewLayoutNoticeHeight}
@@ -14762,22 +14709,11 @@ function Workspace({
             notices={hiddenApprovalToasts}
             topOffset={
               12 +
-              (reminderNoticesHeight ? reminderNoticesHeight + 8 : 0) +
               (harnessUpdateHeight ? harnessUpdateHeight + 8 : 0) +
               (newLayoutNoticeHeight ? newLayoutNoticeHeight + 8 : 0)
             }
             onFocusSession={onOpenApprovalSession}
             onApproval={onApproval}
-          />
-          <ReminderNotices
-            reminders={sessionReminders.due}
-            error={sessionReminders.error}
-            onOpen={sessionReminders.open}
-            onSnooze={sessionReminders.schedule}
-            onDismiss={sessionReminders.cancel}
-            onRetry={sessionReminders.refresh}
-            onOpenSettings={() => openSettings("general", "notifications")}
-            onHeightChange={setReminderNoticesHeight}
           />
           {whatsNewVersion ? (
             <WhatsNewDialog

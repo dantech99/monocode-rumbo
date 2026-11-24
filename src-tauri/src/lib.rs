@@ -45,7 +45,6 @@ mod pty;
 #[cfg(target_os = "macos")]
 mod quick_composer;
 mod rate_limits;
-mod reminders;
 mod remote;
 mod remote_ssh;
 mod resources;
@@ -284,7 +283,6 @@ pub fn run() {
             session_store::init(app.handle())?;
             control::init(app.handle())?;
             mobile_access::init(app.handle())?;
-            reminders::init(app.handle());
             checkpoint::init(app.handle())?;
             menu::install(app.handle())?;
             #[cfg(target_os = "windows")]
@@ -345,13 +343,6 @@ pub fn run() {
             notifications::request_notification_permission,
             notifications::show_notification,
             notifications::open_notification_settings,
-            reminders::reminder_list,
-            reminders::reminder_set,
-            reminders::reminder_clear,
-            reminders::reminder_configure,
-            reminders::reminder_take_open,
-            reminders::reminder_register_window,
-            reminders::reminder_open,
             automations::automations_list,
             automations::automations_upsert,
             automations::automations_delete,
