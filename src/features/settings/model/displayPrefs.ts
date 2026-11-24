@@ -93,7 +93,7 @@ export const saveMaskEmails = maskEmails.save;
 export const subscribeMaskEmails = maskEmails.subscribe;
 export const useMaskEmails = maskEmails.useFlag;
 
-/** Session and mono composers spell check and autocorrect what you type. */
+/** Session composers spell check and autocorrect what you type. */
 export const loadComposerAutocorrect = composerAutocorrect.load;
 export const saveComposerAutocorrect = composerAutocorrect.save;
 export const subscribeComposerAutocorrect = composerAutocorrect.subscribe;

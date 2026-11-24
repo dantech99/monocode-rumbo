@@ -806,8 +806,6 @@ function withPlanStatus(
 function lastAssistantTextInTurn(session: Session): string {
   for (let index = session.blocks.length - 1; index >= 0; index -= 1) {
     const block = session.blocks[index];
-    if (session.queuedMessages?.some((message) => message.blockId === block.id))
-      continue;
     if (block.role === "user") return "";
     if (block.role === "assistant" && block.text.trim()) return block.text;
   }
@@ -1753,7 +1751,6 @@ function Workspace({
   }, [activeSkillCwd, active?.id, active?.harness]);
 
   const activeFile = activeTab ? focusedFileTab(activeTab) : undefined;
-  // A Mono belongs to no project, so its view keeps the project in place.
   const sidebarCwd =
     activeFile?.projectCwd ?? activeFile?.cwd ?? active?.cwd ?? projectCwd;
   const sidebarCwdRef = useRef(sidebarCwd);
@@ -1983,8 +1980,7 @@ function Workspace({
   const activeSessionIdRef = useRef(activeSessionId);
   activeSessionIdRef.current = activeSessionId;
 
-  // Sessions that belong in the UI: a habit's hidden run is not one of them,
-  // and asks through its Mono's chat rather than on its own.
+  // Sessions that belong in the UI: an ephemeral run is not one of them.
   const promptableSessions = useMemo(
     () => sessions.filter((session) => !session.ephemeral),
     [sessions],
@@ -10242,7 +10238,7 @@ function Workspace({
   const onOpenSearch = useCallback(() => {
     workspaceNavigation.cancel();
     startTransition(() => {
-      // With the Mono closed in the same commit, no frame shows the
+      // Opening the view in the same commit leaves no frame that shows the
       // workspace tab between the two views.
       rememberAppView("search");
       setFilePickerOpen(false);
@@ -10683,7 +10679,7 @@ function Workspace({
       if (nextId) navigation.select?.(nextId);
     });
   }, []);
-  /** Closing a Mono's tab puts its view away when it is the one shown. */
+  /** Closing an app view's tab puts that view away when it is the one shown. */
   const closeViewTab = useCallback(
     (id: string, selectNeighbor?: boolean) => {
       const view = appViewForTab(id);

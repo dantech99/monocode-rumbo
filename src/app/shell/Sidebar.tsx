@@ -3005,7 +3005,7 @@ const NO_STARTED_SESSIONS: {
  * Sessions started through the app CLI are named `app-<caller>-<request>`, so
  * each finds its caller among the listed sessions. One a started session
  * started in turn joins the same top-level session. Sessions whose caller is
- * not listed, such as a Mono's, stay where they are.
+ * not listed stay where they are.
  */
 export function groupStartedSessions<T extends { id: string }>(
   sessions: readonly T[],

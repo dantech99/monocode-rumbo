@@ -212,9 +212,8 @@ describe("agent app commands", () => {
     });
   });
 
-  it("does not monitor a Mono's unsent draft by default", async () => {
+  it("does not monitor an unsent draft by default", async () => {
     const { source, host } = fixture();
-    host.isMono = (id) => id === source.id;
     const result = await handleAgentApp(
       source,
       "draft",
@@ -230,9 +229,8 @@ describe("agent app commands", () => {
     );
   });
 
-  it.each([false, true])("leaves non-Mono launches unmonitored when habitRun=%s", async (habitRun) => {
+  it("leaves ordinary launches unmonitored", async () => {
     const { source, host } = fixture();
-    host.isHabitRun = () => habitRun;
     const result = await handleAgentApp(
       source,
       "ordinary",

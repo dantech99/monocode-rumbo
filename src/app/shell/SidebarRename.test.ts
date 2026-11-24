@@ -367,11 +367,11 @@ describe("inset session previews", () => {
   });
 });
 
-it("omits hidden Mono launches from history, open sessions and folders", () => {
+it("omits hidden launches from history, open sessions and folders", () => {
   const hidden = {
     ...props.sessions[0],
     id: "hidden-launch",
-    title: "Mono background work",
+    title: "Hidden background work",
     sidebarHidden: true,
   };
   props.sessions = [...props.sessions, hidden];
