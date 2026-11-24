@@ -200,9 +200,6 @@ import { SourceControl } from "../../features/source-control/ui/SourceControl";
 import { GitHistoryGraph } from "../../features/source-control/ui/GitHistoryGraph";
 import { GithubStarPrompt } from "./GithubStarPrompt";
 import {
-  type MonoRailProps,
-} from "./MonoRailSection";
-import {
   refreshRemoteProjectSessions,
   remoteRequest,
   remotePendingWorktree,
@@ -378,10 +375,6 @@ type Props = {
   updateNotice?: InstalledUpdate | null;
   onOpenWhatsNew?: (version: string) => void;
   onDismissUpdate?: () => void;
-  /** The Monos on the rail; absent while Monos are off. */
-  monos?: MonoRailProps;
-  /** A Mono fills the main area, which has no project sidebar. */
-  monoViewActive?: boolean;
 };
 
 function SidebarComponent({
@@ -470,7 +463,6 @@ function SidebarComponent({
   updateNotice = null,
   onOpenWhatsNew,
   onDismissUpdate,
-  monoViewActive = false,
 }: Props) {
   const trafficLightsVisible = useTrafficLightsVisible();
   const remoteProject = isRemoteProjectPath(cwd);
@@ -921,16 +913,16 @@ function SidebarComponent({
     settingsOpen;
   // Likewise the session they cover stays current but isn't shown selected.
   const highlightedSessionId =
-    otherViewActive || monoViewActive ? undefined : activeListedSessionId;
+    otherViewActive ? undefined : activeListedSessionId;
   // The inset sidebar holds the links to search, inbox and notes,
   // and lets new users open their first project and Settings.
   // It stays available without a project; only settings take its place.
   // The classic action strip stays mounted while Search, Inbox, Notes,
   // or Settings covers the workspace, so the active control
-  // can toggle back. Mono still has no project sidebar.
+  // can toggle back.
   const sidebarAvailable = inset
     ? !settingsOpen
-    : !monoViewActive && inProject;
+    : inProject;
   const sidebarVisible = open && sidebarAvailable;
   // With the sidebar collapsed beside the compact rail, its tab shortcuts
   // open the sidebar temporarily until the user clicks away.

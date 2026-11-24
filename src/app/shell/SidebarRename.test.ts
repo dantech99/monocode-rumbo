@@ -11,7 +11,6 @@ import {
 } from "../../features/sessions/model/sessionFolders";
 import { useProjectDiffStats } from "../../features/source-control/hooks/useProjectDiffStats";
 import { copyText } from "../../platform/tauri/clipboard";
-import { createMono } from "../../features/monos/model/mono";
 
 // Keep native services out of these menu/input interaction tests.
 vi.mock("../../features/source-control/hooks/useProjectDiffStats", () => ({
@@ -543,60 +542,6 @@ describe("worktree explorer visibility", () => {
       container.querySelector<HTMLElement>("[data-explorer-cwd]")!.dataset
         .explorerCwd,
     ).toBe("/worktrees/second");
-  });
-});
-
-describe.each([false, true])("Mono rail selection (compact: %s)", (compact) => {
-  it.each([
-    ["Inbox", "inboxActive", "onOpenInbox"],
-    ["Notes", "notesActive", "onOpenNotes"],
-    ["Search", "searchActive", "onSearch"],
-  ] as const)("selects only %s without a mono rail", async (label, active, open) => {
-    const mono = createMono();
-    props = {
-      ...props,
-      inset: true,
-      projectRailOpen: !compact,
-      compactProjectRail: compact,
-      onSelectProject: vi.fn(),
-      onOpenProject: vi.fn(),
-      monoViewActive: true,
-      monos: {
-        activeId: mono.id,
-        states: new Map(),
-        onOpen: vi.fn(),
-        onCreate: vi.fn(),
-        onDelete: vi.fn(),
-      },
-      [open]: () => {
-        props = { ...props, [active]: true };
-        render();
-      },
-    };
-    await act(async () => render());
-    expect(container.querySelector("[data-mono-rail]")).toBeNull();
-    expect(container.querySelector("[data-mono]")).toBeNull();
-    expect(container.querySelector('nav[aria-label="Projects"]')).toBeNull();
-    expect(
-      container.querySelector('[aria-label^="Switch project"]')
-        ?.getAttribute("aria-label") ?? "",
-    ).not.toContain("current mono");
-    expect(card()).not.toBeNull();
-
-    const action = () =>
-      container.querySelector<HTMLButtonElement>(
-        `button[aria-label^="${label}"]`,
-      )!;
-    await act(async () => action().click());
-    expect(action().classList).toContain("bg-selection");
-    expect(container.querySelector("[data-mono-rail]")).toBeNull();
-    expect(card()).not.toBeNull();
-    expect(props.monos?.activeId).toBe(mono.id);
-
-    props = { ...props, [active]: false };
-    await act(async () => render());
-    expect(action().classList).not.toContain("bg-selection");
-    expect(card()).not.toBeNull();
   });
 });
 
