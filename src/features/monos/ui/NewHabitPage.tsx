@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { isImeComposition } from "../../../shared/lib/keyboard";
 import { SearchableSelect } from "../../../shared/ui/SearchableSelect";
-import { AUTOMATION_WEEKDAYS } from "../../automations/model/automations";
+import { AUTOMATION_WEEKDAYS } from "../model/monoSchedule";
 import {
   addHabit,
   nextHabitRunAt,

@@ -3,7 +3,7 @@ import {
   isScheduleKind,
   nextAutomationRunAt,
   type AutomationScheduleKind,
-} from "../../automations/model/automations";
+} from "./monoSchedule";
 import type { Block, MonoSpawnedSession } from "../../sessions/model/session";
 import type { MonoLook } from "./mono";
 import {

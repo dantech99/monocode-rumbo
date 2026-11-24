@@ -3,7 +3,7 @@ import { looksLikeProject, sameProjectPath } from "./recents";
 /**
  * Whether something filed under `path` belongs in a view scoped to `scope`.
  * No scope keeps everything. Anything not filed under a project (a project-
- * less note, a team-level Linear or Jira issue) belongs to every project, so
+ * less note, a team-level Linear issue) belongs to every project, so
  * scoping never hides it.
  */
 export function inProjectScope(

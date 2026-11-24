@@ -10,7 +10,6 @@ import {
   githubAvatarUrl,
   githubReviewDecisionLabel,
   githubReviewStateLabel,
-  gitlabAttentionLabel,
   groupProjectsByRepo,
   inboxComposerCard,
   inboxItemKey,
@@ -105,14 +104,14 @@ describe("inboxPersonAvatarUrl", () => {
     expect(inboxPersonAvatarUrl("linear", "Ada")).toBe("");
   });
 
-  it("uses GitLab's explicit avatar URL", () => {
+  it("uses an explicit avatar URL", () => {
     expect(
       inboxPersonAvatarUrl(
-        "gitlab",
+        "linear",
         "maya",
-        "https://gitlab.example.com/uploads/maya.png",
+        "https://cdn.example.com/uploads/maya.png",
       ),
-    ).toBe("https://gitlab.example.com/uploads/maya.png");
+    ).toBe("https://cdn.example.com/uploads/maya.png");
   });
 });
 
@@ -147,17 +146,6 @@ describe("githubReviewStateLabel", () => {
     expect(githubReviewStateLabel("APPROVED")).toBe("Approved");
     expect(githubReviewStateLabel("COMMENTED")).toBe("Commented");
     expect(githubReviewStateLabel("PENDING")).toBe("");
-  });
-});
-
-describe("gitlabAttentionLabel", () => {
-  it("labels the GitLab actions that put work in the attention view", () => {
-    expect(gitlabAttentionLabel("assigned")).toBe("Assigned to you");
-    expect(gitlabAttentionLabel("mentioned")).toBe("Mentioned you");
-    expect(gitlabAttentionLabel("review_requested")).toBe("Review requested");
-    expect(gitlabAttentionLabel("marked")).toBe("Added to your to-dos");
-    expect(gitlabAttentionLabel("unknown_action")).toBe("Unknown action");
-    expect(gitlabAttentionLabel("")).toBe("");
   });
 });
 
@@ -269,14 +257,7 @@ describe("dedupeInboxItems", () => {
         repo: "acme/web",
       }),
       item({
-        provider: "gitlab",
-        kind: "issue",
-        number: 9,
-        updatedAt: "2026-08-27T10:00:00Z",
-        repo: "acme/web",
-      }),
-      item({
-        provider: "azuredevops",
+        provider: "linear",
         kind: "issue",
         number: 9,
         updatedAt: "2026-08-27T10:00:00Z",
@@ -284,11 +265,10 @@ describe("dedupeInboxItems", () => {
       }),
     ];
     const deduped = dedupeInboxItems(rows);
-    expect(deduped).toHaveLength(3);
+    expect(deduped).toHaveLength(2);
     expect(deduped.map((entry) => entry.provider).sort()).toEqual([
-      "azuredevops",
       "github",
-      "gitlab",
+      "linear",
     ]);
   });
 });
@@ -447,23 +427,6 @@ describe("inboxStartDraft", () => {
     );
   });
 
-  it("uses GitLab merge request wording", () => {
-    expect(
-      inboxStartDraft(
-        item({
-          number: 12,
-          kind: "pr",
-          provider: "gitlab",
-          title: "Fix checkout",
-          url: "https://gitlab.example.com/acme/web/-/merge_requests/12",
-          updatedAt: "2026-08-27T10:00:00Z",
-        }),
-      ),
-    ).toBe(
-      "Work on this GitLab merge request:\n\n#12 Fix checkout\nhttps://gitlab.example.com/acme/web/-/merge_requests/12\n",
-    );
-  });
-
   it("includes a Linear description when provided", () => {
     expect(
       inboxStartDraft(
@@ -495,20 +458,6 @@ describe("inboxItemKey", () => {
         }),
       ),
     ).toBe("linear:eng-9");
-  });
-
-  it("keeps GitLab identities separate from GitHub", () => {
-    const gitlab = item({
-      number: 9,
-      provider: "gitlab",
-      repo: "acme/web",
-      url: "https://gitlab.example.com/acme/web/-/issues/9",
-      updatedAt: "2026-08-27T10:00:00Z",
-    });
-    expect(inboxItemKey(gitlab)).toBe("gitlab:acme/web:issue:9");
-    expect(inboxItemKey(gitlab)).not.toBe(
-      inboxItemKey({ ...gitlab, provider: "github" }),
-    );
   });
 });
 
@@ -551,25 +500,6 @@ describe("inboxComposerCard", () => {
     );
     expect(card).toMatchObject({
       provider: "github",
-      kind: "issue",
-      identifier: "#10",
-      title: "Normalize streamed plan",
-      source: "acme/web",
-    });
-  });
-
-  it("builds a GitLab chip from the project and issue number", () => {
-    const card = inboxComposerCard(
-      item({
-        number: 10,
-        provider: "gitlab",
-        title: "Normalize streamed plan",
-        url: "https://gitlab.example.com/acme/web/-/issues/10",
-        updatedAt: "2026-08-27T10:00:00Z",
-      }),
-    );
-    expect(card).toMatchObject({
-      provider: "gitlab",
       kind: "issue",
       identifier: "#10",
       title: "Normalize streamed plan",

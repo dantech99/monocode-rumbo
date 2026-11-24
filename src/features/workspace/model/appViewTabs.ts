@@ -2,7 +2,6 @@ export const APP_VIEW_LABELS = {
   search: "Search",
   inbox: "Inbox",
   notes: "Notes",
-  automations: "Automations",
 } as const;
 
 export type AppView = keyof typeof APP_VIEW_LABELS;

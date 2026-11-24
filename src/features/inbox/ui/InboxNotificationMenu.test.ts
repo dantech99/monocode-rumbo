@@ -153,7 +153,7 @@ it("keeps unread items and the menu open when marking read fails, then allows re
 });
 
 it("marks all Inbox providers as read from the rail, including muted projects", async () => {
-  const items: InboxItem[] = (["github", "gitlab", "linear"] as const).map((provider) => ({
+  const items: InboxItem[] = (["github", "linear"] as const).map((provider) => ({
     provider, kind: "issue", repo: "company/work", number: 1,
     title: "Inbox update", url: `https://${provider}.com/company/work/1`,
     state: "open", updatedAt: "2026-09-16T10:00:00Z",

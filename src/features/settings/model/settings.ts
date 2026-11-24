@@ -134,7 +134,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     description:
       "Manage Inbox services and notification preferences for each project.",
     keywords:
-      "github gitlab linear jira atlassian azure devops connect token integration",
+      "github linear connect token integration",
   },
   {
     id: "archive",
@@ -234,7 +234,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
     id: "notifications",
     section: "general",
     label: "Notifications",
-    keywords: "notify alert toast permission reminder background",
+    keywords: "notify alert toast permission background",
   },
   {
     id: "notes",
@@ -482,31 +482,13 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
     id: "project-notifications",
     section: "inbox",
     label: "Project notifications",
-    keywords: "mute resume sounds banners reminders categories",
+    keywords: "mute resume sounds banners categories",
   },
   {
     id: "github",
     section: "inbox",
     label: "GitHub",
     keywords: "gh cli connect pull request sign in",
-  },
-  {
-    id: "gitlab",
-    section: "inbox",
-    label: "GitLab",
-    keywords: "token self-managed merge request connect",
-  },
-  {
-    id: "azuredevops",
-    section: "inbox",
-    label: "ADO",
-    keywords: "azure devops boards repos pull request pat organization connect",
-  },
-  {
-    id: "jira",
-    section: "inbox",
-    label: "Jira",
-    keywords: "atlassian cloud site email api token issues projects connect",
   },
   {
     id: "linear",
