@@ -5,6 +5,7 @@ import {
   filterSessionsByQuery,
   mergeHistorySummary,
   mergeProjectHistorySummary,
+  projectHistoryLoadPaths,
   replaceProjectHistory,
   sameSessionSummaries,
 } from "./sessionHistory";
@@ -502,5 +503,21 @@ describe("sameSessionSummaries", () => {
     ).toBe(false);
     expect(sameSessionSummaries([a, b], [b, a])).toBe(false);
     expect(sameSessionSummaries([a], [a, b])).toBe(false);
+  });
+});
+
+describe("projectHistoryLoadPaths", () => {
+  it("loads the active local project first and skips remote paths", () => {
+    expect(
+      projectHistoryLoadPaths(
+        [
+          { path: "/repo/b" },
+          { path: "remote://host/repo" },
+          { path: "/repo/a" },
+          { path: "~" },
+        ],
+        "/repo/a",
+      ),
+    ).toEqual(["/repo/a", "/repo/b"]);
   });
 });

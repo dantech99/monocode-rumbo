@@ -55,6 +55,7 @@ export function RailAction({
       }
       disabled={!onClick}
       aria-label={ariaLabel ?? label}
+      aria-pressed={active}
       className={`relative flex w-full items-center gap-2 rounded-md px-2 h-8  text-left ${
         active
           ? "bg-selection text-content"

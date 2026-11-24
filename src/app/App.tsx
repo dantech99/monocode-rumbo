@@ -778,6 +778,7 @@ import {
 import {
   mergeHistorySummary,
   mergeProjectHistorySummary,
+  projectHistoryLoadPaths,
   replaceProjectHistory,
   historyWithLiveSessions,
   sameSessionSummaries,
@@ -1504,6 +1505,9 @@ function Workspace({
   loadedProjectsRef.current = loadedProjects;
   /** Project whose listing failed, so the error cannot leak to another one. */
   const [historyErrorCwd, setHistoryErrorCwd] = useState<string | null>(null);
+  const [historyErrorPaths, setHistoryErrorPaths] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const linkedSessionUpdatesRef = useRef<
     ReadonlyMap<string, LinkedSessionUpdate>
@@ -2492,32 +2496,36 @@ function Workspace({
 
   const refreshHistory = useCallback(async (cwd: string) => {
     if (!cwd || cwd === "~") return;
-    // `history` holds every visited project's rows and the sidebar filters it
-    // by cwd, so a project loaded once paints from cache on the way back and
-    // revalidates quietly underneath the cards already on screen. Whether the
-    // first load is still pending is derived from `loadedProjects`, not
-    // tracked here — a status set from this effect lands a render too late to
-    // suppress the empty state.
     const key = normalizeProjectPath(cwd);
-    setHistoryErrorCwd((prev) => (prev === key ? null : prev));
+    setHistoryErrorPaths((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
     try {
       const rows = await listSessionsByProject(cwd);
-      if (cwd !== sidebarCwdRef.current) return;
       setHistory((current) => replaceProjectHistory(current, cwd, rows));
       setLoadedProjects((prev) =>
         prev.has(key) ? prev : new Set(prev).add(key),
       );
+      if (sameProjectPath(cwd, sidebarCwdRef.current)) setHistoryErrorCwd(null);
     } catch {
-      if (cwd !== sidebarCwdRef.current) return;
-      // A failed revalidate keeps the cached cards rather than replacing a
-      // good list with an error.
-      if (!loadedProjectsRef.current.has(key)) setHistoryErrorCwd(key);
+      if (loadedProjectsRef.current.has(key)) return;
+      setHistoryErrorPaths((prev) =>
+        prev.has(key) ? prev : new Set(prev).add(key),
+      );
+      if (sameProjectPath(cwd, sidebarCwdRef.current)) setHistoryErrorCwd(key);
     }
   }, []);
 
   useEffect(() => {
-    void refreshHistory(sidebarCwd);
-  }, [sidebarCwd, refreshHistory]);
+    const paths = projectHistoryLoadPaths(
+      projectRailItems(recents, sidebarCwd),
+      sidebarCwd,
+    );
+    for (const path of paths) void refreshHistory(path);
+  }, [recents, sidebarCwd, refreshHistory]);
 
   useEffect(() => {
     if (!inboxViewOpen) return;
@@ -11504,11 +11512,48 @@ function Workspace({
     [history, sidebarCwd],
   );
 
-  const sidebarHistoryRows = useMemo(
-    () =>
+  const sidebarHistoryRows = useMemo(() => {
+    const projects = projectHistoryLoadPaths(
+      projectRailItems(recents, sidebarCwd),
+      sidebarCwd,
+    );
+    return projects.flatMap((path) =>
       historyWithLiveSessions(
         history,
         // A habit's hidden run is never one of the project's chats.
+        promptableSessions,
+        path,
+        sameProjectPath(path, sidebarCwd)
+          ? {
+              ...(projectBranches?.current
+                ? { branch: projectBranches.current }
+                : {}),
+              ...(path && path !== "~" ? { repo: projectName(path) } : {}),
+            }
+          : path && path !== "~"
+            ? { repo: projectName(path) }
+            : undefined,
+        orchestrationRuns,
+      ),
+    );
+  }, [
+    history,
+    orchestrationRuns,
+    projectBranches,
+    promptableSessions,
+    recents,
+    sidebarCwd,
+  ]);
+  const sidebarHistory = useStableValue(
+    sidebarHistoryRows,
+    sameSessionSummaries,
+  );
+  // One project, including a remote cwd the rail loader skips. Settings and
+  // any other single-project consumer use this; Sidebar gets `sidebarHistory`.
+  const currentProjectHistoryRows = useMemo(
+    () =>
+      historyWithLiveSessions(
+        history,
         promptableSessions,
         sidebarCwd,
         {
@@ -11523,14 +11568,14 @@ function Workspace({
       ),
     [
       history,
+      orchestrationRuns,
       projectBranches,
       promptableSessions,
       sidebarCwd,
-      orchestrationRuns,
     ],
   );
-  const sidebarHistory = useStableValue(
-    sidebarHistoryRows,
+  const currentProjectHistory = useStableValue(
+    currentProjectHistoryRows,
     sameSessionSummaries,
   );
   const {
@@ -13262,6 +13307,12 @@ function Workspace({
     notesViewOpen;
   const compactProjectRail = collapsedProjectRailMode === "compact";
   const compactRailActive = compactProjectRail && !projectRailOpen;
+  // Overlay back stays only while the spaces strip is not on screen.
+  const spacesStripVisible =
+    !insetLayout &&
+    sessionSidebarOpen &&
+    !monoCovers &&
+    looksLikeProject(sidebarCwd);
   const compactTitleNavigation =
     IS_MAC && compactRailActive && !chromeSurfaceOpen;
   const compactTitleBar = compactTitleNavigation && !monoCovers;
@@ -13479,6 +13530,13 @@ function Workspace({
       activeSessionId={activeSessionId}
       status={historyFailed ? "error" : "idle"}
       pending={historyPending}
+      failedProjectPaths={historyErrorPaths}
+      loadedProjectPaths={loadedProjects}
+      currentBranch={
+        projectBranches?.current && !projectBranches.detached
+          ? projectBranches.current
+          : undefined
+      }
       onSelectSession={onSelectHistorySession}
       onSelectRemoteSession={onSelectRemoteSession}
       onRemoteSessionDeleted={onRemoteSessionDeleted}
@@ -13953,9 +14011,7 @@ function Workspace({
                         history={projectHistory}
                         sessions={sessions.filter((session) => !session.inboxAsk)}
                         focusToken={searchViewFocusToken}
-                        besideRail={
-                          insetLayout || projectRailOpen || compactProjectRail
-                        }
+                        besideRail={insetLayout || spacesStripVisible}
                         compactRail={!insetLayout && compactRailActive}
                         onClose={onLeaveSearch}
                         onToggleSidebar={onToggleSidebar}
@@ -14003,9 +14059,7 @@ function Workspace({
                         cwd={sidebarCwd}
                         scopeProject={appViewScope}
                         recents={recents}
-                        besideRail={
-                          insetLayout || projectRailOpen || compactProjectRail
-                        }
+                        besideRail={insetLayout || spacesStripVisible}
                         compactRail={!insetLayout && compactRailActive}
                         onClose={onLeaveInbox}
                         onToggleSidebar={onToggleSidebar}
@@ -14027,9 +14081,7 @@ function Workspace({
                       <NotesView
                         tabbed={insetLayout}
                         active={notesViewOpen}
-                        besideRail={
-                          insetLayout || projectRailOpen || compactProjectRail
-                        }
+                        besideRail={insetLayout || spacesStripVisible}
                         compactRail={!insetLayout && compactRailActive}
                         cwd={projectCwd}
                         scopeProject={appViewScope}
@@ -14047,7 +14099,7 @@ function Workspace({
                       notificationSettingsRequest={notificationSettingsRequest}
                       recents={recents}
                       cwd={sidebarCwd}
-                      sessions={sidebarHistory}
+                      sessions={currentProjectHistory}
                       liveSessions={sessions}
                       onRemoveWorktree={onRemoveWorktree}
                       onCheckWorktreeRemoval={onCheckWorktreeRemoval}
