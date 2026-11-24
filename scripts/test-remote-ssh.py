@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run native SSH transport tests against disposable loopback services.
+"""Run SSH transport tests against disposable loopback services.
 
 Requires OpenSSH sshd, a built host package for this platform, and Cargo.
 Does not modify HOME, SSH configuration, authorized_keys or OS services.
@@ -31,29 +31,16 @@ def free_port():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--native", action="store_true", help="Test the GPUI desktop and UI-independent core instead of Tauri")
-    parser.add_argument("--desktop", type=pathlib.Path, help="Use an already-built desktop executable (for example a native-dev build)")
-    parser.add_argument("--profile", help="Cargo build profile (native defaults to native-dev; Tauri defaults to dev)")
+    parser.add_argument("--desktop", type=pathlib.Path, help="Use an already-built desktop executable (for example a dev build)")
+    parser.add_argument("--profile", help="Cargo build profile (defaults to dev)")
     args = parser.parse_args()
-    profile = args.profile or ("native-dev" if args.native else "dev")
+    profile = args.profile or "dev"
     profile_directory = "debug" if profile == "dev" else profile
-    if args.native:
-        metadata = json.loads(subprocess.check_output([
-            "cargo", "metadata", "--manifest-path", str(ROOT / "crates/monocode-gpui/Cargo.toml"),
-            "--no-deps", "--format-version", "1",
-        ], cwd=ROOT, text=True))
-        target = pathlib.Path(metadata["target_directory"])
-        if os.environ.get("CARGO_BUILD_TARGET"):
-            target /= os.environ["CARGO_BUILD_TARGET"]
-        desktop = args.desktop or target / profile_directory / "monocode-gpui"
-        transport_test = ["cargo", "test", "--manifest-path", "crates/monocode-gpui/Cargo.toml", "--locked", "--offline", "-j", "1", "-p", "monocode-core", "--profile", profile, "--lib", "remote::ssh::tests::loopback_transport_preserves_host_and_reconnects"]
-        build_hint = f"cargo build --manifest-path crates/monocode-gpui/Cargo.toml -p monocode-gpui --profile {profile}"
-    else:
-        desktop = args.desktop or ROOT / "target" / profile_directory / "monocode"
-        transport_test = ["cargo", "test", "--lib", "remote_ssh::tests::loopback_transport_preserves_host_and_reconnects"]
-        if args.profile:
-            transport_test.extend(["--profile", profile])
-        build_hint = "cargo build --bin monocode" + (f" --profile {profile}" if args.profile else "")
+    desktop = args.desktop or ROOT / "target" / profile_directory / "monocode"
+    transport_test = ["cargo", "test", "--lib", "remote_ssh::tests::loopback_transport_preserves_host_and_reconnects"]
+    if args.profile:
+        transport_test.extend(["--profile", profile])
+    build_hint = "cargo build --bin monocode" + (f" --profile {profile}" if args.profile else "")
     desktop = desktop.resolve()
     if not desktop.is_file():
         raise RuntimeError(f"Run {build_hint} first, or pass --desktop with an existing build")
