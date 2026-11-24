@@ -8,7 +8,6 @@
 *.pfx
 *.cer
 *.certSigningRequest
-*.mobileprovision
 *.keystore
 *.jks
 id_rsa*
