@@ -11573,6 +11573,13 @@ function Workspace({
     gitCwd || sidebarCwd,
     showRightPanelToggle && isLocalProject(sidebarCwd),
   );
+  // Back also leaves Settings and the full-page views, not only tab history.
+  const canGoBack =
+    tabVisitNav.canBack ||
+    searchViewOpen ||
+    settingsOpen ||
+    inboxViewOpen ||
+    notesViewOpen;
   const [worktreeDialog, setWorktreeDialog] = useState<"new" | "open">();
   const onNewTabAction = (action: NewTabAction) => {
     if (action.kind === "terminal") onNewTerminal();
@@ -11612,7 +11619,7 @@ function Workspace({
       }
       rightPanelDot={(rightPanelChanges?.files ?? 0) > 0}
       rightPanelUnavailable={!!activeAppView}
-      canGoBack={tabVisitNav.canBack}
+      canGoBack={canGoBack}
       canGoForward={tabVisitNav.canForward}
       onGoBack={onRailBack}
       onGoForward={onRailForward}
@@ -11705,13 +11712,7 @@ function Workspace({
       onOpenTerminal={onOpenTerminal}
       onFileMoved={onFileMoved}
       onFileDeleted={onFileDeleted}
-      canGoBack={
-        tabVisitNav.canBack ||
-        searchViewOpen ||
-        settingsOpen ||
-        inboxViewOpen ||
-        notesViewOpen
-      }
+      canGoBack={canGoBack}
       canGoForward={tabVisitNav.canForward}
       onGoBack={onRailBack}
       onGoForward={onRailForward}
