@@ -113,3 +113,33 @@ export function projectSessionGroups(input: {
   }
   return groups;
 }
+
+export type AgentSections<G extends ProjectSessionGroup = ProjectSessionGroup> = {
+  /** Pinned sessions from every project, newest first, without a project. */
+  pinned: SessionSummary[];
+  /** Per project, its sessions that are not pinned. */
+  projects: G[];
+};
+
+/**
+ * Splits the per-project groups into the "Agents" list: pinned sessions
+ * first, then each project with something to show. A project with no
+ * sessions drops out, except one whose load failed or whose machine is not
+ * connected, which keeps its line. A project still loading shows nothing yet.
+ */
+export function agentSections<G extends ProjectSessionGroup>(
+  groups: readonly G[],
+): AgentSections<G> {
+  const pinned = groups
+    .flatMap((group) => group.sessions.filter((session) => session.pinned))
+    .sort(compareSessionSummaries);
+  const projects: G[] = [];
+  for (const group of groups) {
+    const sessions = group.sessions.filter((session) => !session.pinned);
+    const hasLine =
+      group.phase === "error" || group.phase === "remote-disconnected";
+    if (sessions.length === 0 && !hasLine) continue;
+    projects.push({ ...group, sessions });
+  }
+  return { pinned, projects };
+}

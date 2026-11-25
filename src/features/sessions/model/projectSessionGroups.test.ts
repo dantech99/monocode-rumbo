@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SessionSummary } from "../data/sessionStore";
 import { DEFAULT_SESSION_SIDEBAR_FILTERS } from "./sessionFilters";
 import {
+  agentSections,
   projectBranchLabel,
   projectListPhase,
   projectSessionGroups,
@@ -129,5 +130,63 @@ describe("projectListPhase", () => {
         failed: true,
       }),
     ).toBe("error");
+  });
+});
+
+describe("agentSections", () => {
+  it("lists pinned sessions first, without their project, then the other sessions per project", () => {
+    const groups = projectSessionGroups({
+      ...base,
+      projects: [{ path: "/repo/a" }, { path: "/repo/b" }],
+      rows: [
+        row("a1", "/repo/a"),
+        row("a-pin", "/repo/a", { pinned: true, updatedAt: 5 }),
+        row("b1", "/repo/b"),
+        row("b-pin", "/repo/b", { pinned: true, updatedAt: 9 }),
+      ],
+    });
+    const sections = agentSections(groups);
+    expect(sections.pinned.map((session) => session.id)).toEqual([
+      "b-pin",
+      "a-pin",
+    ]);
+    expect(sections.projects.map((group) => group.cwd)).toEqual([
+      "/repo/a",
+      "/repo/b",
+    ]);
+    expect(sections.projects[0]?.sessions.map((session) => session.id)).toEqual([
+      "a1",
+    ]);
+    expect(sections.projects[1]?.sessions.map((session) => session.id)).toEqual([
+      "b1",
+    ]);
+  });
+
+  it("leaves out a project with nothing to show but keeps its load error and disconnected lines", () => {
+    const groups = projectSessionGroups({
+      ...base,
+      projects: [
+        { path: "/repo/a" },
+        { path: "/repo/empty" },
+        { path: "/repo/failed" },
+        { path: "/repo/remote" },
+        { path: "/repo/pending" },
+        { path: "/repo/only-pinned" },
+      ],
+      rows: [
+        row("a1", "/repo/a"),
+        row("p1", "/repo/only-pinned", { pinned: true }),
+      ],
+      failedPaths: new Set(["/repo/failed"]),
+      remoteDisconnectedPaths: new Set(["/repo/remote"]),
+      pendingPaths: new Set(["/repo/pending"]),
+    });
+    const sections = agentSections(groups);
+    expect(sections.projects.map((group) => group.cwd)).toEqual([
+      "/repo/a",
+      "/repo/failed",
+      "/repo/remote",
+    ]);
+    expect(sections.pinned.map((session) => session.id)).toEqual(["p1"]);
   });
 });

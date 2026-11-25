@@ -4,22 +4,13 @@ import {
   inWorktreeFocus,
   useWorktreeFocus,
 } from "../../features/source-control/model/worktreeFocus";
-import {
-  SidebarWorktreeSwitcher,
-  type ProjectMenuFlyout,
-} from "../../features/source-control/ui/SidebarWorktreeSwitcher";
-import {
-  CurrentProjectIcon,
-  useProjectLabel,
-} from "../../features/projects/ui/CurrentProjectIcon";
+import { SidebarWorktreeSwitcher } from "../../features/source-control/ui/SidebarWorktreeSwitcher";
 import { OrchestrationSidebarAgents } from "../../features/orchestration/ui/OrchestrationSidebarAgents";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   Archive,
   Check,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   CircleAlert,
   CircleDashed,
   CircleDot,
@@ -43,7 +34,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type ComponentProps,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
@@ -64,7 +54,7 @@ import {
   type GitFileDiffKind,
   type GitHistoryCommit,
 } from "../../platform/tauri/fs";
-import { MOD, SHIFT } from "../../platform/tauri/platform";
+import { MOD } from "../../platform/tauri/platform";
 import { useTrafficLightsVisible } from "../../platform/tauri/useTrafficLightsVisible";
 import { copyText } from "../../platform/tauri/clipboard";
 import { resolveModel } from "../../features/sessions/model/models";
@@ -135,8 +125,6 @@ import type {
 import type { LiveAgent } from "../../features/sessions/model/liveAgents";
 import type { SessionSummary } from "../../features/sessions/data/sessionStore";
 import {
-  keybindingShortcutLabel,
-  subscribeKeybindings,
   type SettingsSectionId,
 } from "../../features/settings/model/settings";
 import type { InstalledUpdate } from "../model/updateNotice";
@@ -176,10 +164,15 @@ import { SessionCardPreview } from "../../features/sessions/ui/SessionCardPrevie
 import { LiveAgentsPreview } from "../../features/sessions/ui/LiveAgentsPreview";
 import { useProjectAppearance } from "../../features/projects/hooks/useProjectAppearance";
 import { useTabGroupLogos } from "../../features/projects/hooks/useTabGroupLogos";
-import { projectSessionGroups } from "../../features/sessions/model/projectSessionGroups";
+import {
+  agentSections,
+  projectBranchLabel,
+  projectSessionGroups,
+} from "../../features/sessions/model/projectSessionGroups";
 import {
   ProjectSessionColumn,
   type ProjectColumnGroup,
+  type ProjectColumnSpace,
 } from "./ProjectSessionColumn";
 import { InboxNotificationMenu } from "../../features/inbox/ui/InboxNotificationMenu";
 import { TerminalSpinner } from "../../features/sessions/ui/TerminalSpinner";
@@ -187,11 +180,8 @@ import { DevModeSlot, IconButton, TabVisitNav } from "./TitleBar";
 import { ProjectSearch } from "../../features/projects/ui/ProjectSearch";
 import { Popover } from "../../shared/ui/Popover";
 import {
-  pickerProjects,
-  ProjectPickerPopover,
   SearchableProjectPicker,
 } from "../../features/projects/ui/SearchableProjectPicker";
-import { useRailTooltip } from "./RailTooltip";
 import { useProjectMenu } from "./useProjectMenu";
 import { SessionFiltersMenu } from "../../features/sessions/ui/SessionFiltersMenu";
 import { LinkSessionWorkItemDialog } from "../../features/sessions/ui/LinkSessionWorkItemDialog";
@@ -1887,7 +1877,6 @@ function SidebarComponent({
     );
   });
 
-  const projectLabel = useProjectLabel(cwd);
   const [insetInboxMenu, setInsetInboxMenu] = useState<{
     x: number;
     y: number;
@@ -1903,47 +1892,6 @@ function SidebarComponent({
     // Only the inset layout uses this menu, and it has no project rail.
     railOptions: false,
   });
-  // The inset layout names the project here, with its settings and the
-  // project and worktree pickers in a menu below it.
-  const headerProject = inset
-    ? {
-        name: projectLabel,
-        icon: (
-          <CurrentProjectIcon
-            cwd={cwd}
-            busy={projectPathBusy(busyProjectPaths, cwd)}
-            mascotClassName="size-2.5"
-          />
-        ),
-        onOpenSettings,
-        settingsShortcut: `${MOD},`,
-        keepOpen: headerProjectMenu.isActive,
-        // The right-click project menu, as a flyout level with its row.
-        onOpenProjectSettings: (row: HTMLElement) => {
-          const rect = row.getBoundingClientRect();
-          headerProjectMenu.open(cwd, rect.right, rect.top - 8, row);
-        },
-        onContextMenu: (x: number, y: number, trigger: HTMLElement) =>
-          headerProjectMenu.open(cwd, x, y, trigger),
-        onCloseProjectSettings: headerProjectMenu.close,
-        projectSettingsOpen: headerProjectMenu.isOpen,
-        renderProjectPicker: onSelectProject
-          ? ({ anchor, layer, attributes, onClose }: ProjectMenuFlyout) => (
-              <ProjectPickerPopover
-                anchor={anchor}
-                flyout={{ layer, attributes }}
-                projects={pickerProjects(recents, cwd)}
-                currentProject={cwd}
-                onDismiss={onClose}
-                onSelectProject={onSelectProject}
-                onOpenProject={onOpenProject}
-                onProjectContextMenu={headerProjectMenu.open}
-                projectMenuActive={headerProjectMenu.isActive}
-              />
-            )
-          : undefined,
-      }
-    : undefined;
   // The inset sidebar's spaces: the projects in the rail's order, the same
   // one Project: Previous / Next steps through.
   const spaceProjects = useMemo(
@@ -2164,7 +2112,7 @@ function SidebarComponent({
       data-tauri-drag-region="deep"
     >
       <div className="flex min-w-0 flex-1 items-center">
-        {(headerProject || !remoteProject) && cwd && cwd !== "~" ? (
+        {!remoteProject && cwd && cwd !== "~" ? (
           <SidebarWorktreeSwitcher
             worktrees={!remoteProject}
             cwd={cwd}
@@ -2172,7 +2120,6 @@ function SidebarComponent({
             onSelect={onSelectWorkspace}
             pending={workspaceSwitchPending}
             switchError={workspaceSwitchError}
-            project={headerProject}
           />
         ) : (
           <span className="min-w-0 truncate text-sm font-medium leading-tight">
@@ -2308,6 +2255,33 @@ function SidebarComponent({
       remoteDisconnectedPaths.add(project.path);
     }
   }
+  const columnProject = (path: string) => {
+    const key = projectKey(path);
+    const seed = projectName(path);
+    const label = resolveTabGroupLabel(
+      key,
+      groupLabels,
+      basename(path) || seed,
+    );
+    const logoPath = resolveTabGroupLogo(key, groupLogos);
+    return {
+      label,
+      initial: Array.from(label)[0]?.toUpperCase() ?? "?",
+      color: resolveTabGroupColor(key, groupColors, groupCustomColors, seed),
+      logoPath: logoPath ?? undefined,
+    };
+  };
+  // Spaces lists every project, whatever the session filter says.
+  const columnSpaces: ProjectColumnSpace[] = railProjects.map((project) => ({
+    cwd: project.path,
+    branch: projectBranchLabel(
+      project.path,
+      cwd,
+      currentBranch,
+      columnRows.filter((row) => sameProjectPath(row.cwd, project.path)),
+    ),
+    ...columnProject(project.path),
+  }));
   const columnGroups: ProjectColumnGroup[] = projectSessionGroups({
     projects: railProjects,
     rows: columnRows,
@@ -2322,23 +2296,9 @@ function SidebarComponent({
     failedPaths: failedProjectPaths,
     remoteDisconnectedPaths,
     currentBranch,
-  }).map((group) => {
-    const key = projectKey(group.cwd);
-    const seed = projectName(group.cwd);
-    const label = resolveTabGroupLabel(
-      key,
-      groupLabels,
-      basename(group.cwd) || seed,
-    );
-    const logoPath = resolveTabGroupLogo(key, groupLogos);
-    return {
-      ...group,
-      label,
-      initial: Array.from(label)[0]?.toUpperCase() ?? "?",
-      color: resolveTabGroupColor(key, groupColors, groupCustomColors, seed),
-      logoPath: logoPath ?? undefined,
-    };
-  });
+  }).map((group) => ({ ...group, ...columnProject(group.cwd) }));
+  const { pinned: pinnedAgentSessions, projects: agentProjects } =
+    agentSections(columnGroups);
   const showSessionList = tab !== "files" && tab !== "changes";
 
   const sidebarContent = (
@@ -2355,7 +2315,7 @@ function SidebarComponent({
           switches projects. */}
       {railVisible || inset ? (
         <>
-          {workspaceHeader}
+          {inset ? headerProjectMenu.element : workspaceHeader}
           {/* The inset sidebar has no tabs: the project tools live in the
               right panel. */}
           {inset ? null : (
@@ -2427,7 +2387,10 @@ function SidebarComponent({
           }
         >
           <ProjectSessionColumn
-            groups={columnGroups}
+            spaces={columnSpaces}
+            pinnedSessions={pinnedAgentSessions}
+            agentGroups={agentProjects}
+            onProjectContextMenu={headerProjectMenu.open}
             cwd={cwd}
             query={searchQuery}
             onQueryChange={setSearchQuery}
@@ -2488,15 +2451,6 @@ function SidebarComponent({
               <GithubStarPrompt />
             </div>
           </>
-        ) : null}
-        {inset && onSelectProject ? (
-          <ProjectSpacesBar
-            projects={spaceProjects}
-            cwd={cwd}
-            busyProjectPaths={busyProjectPaths}
-            onSelectProject={onSelectProject}
-            onProjectContextMenu={headerProjectMenu.open}
-          />
         ) : null}
       </>
       {insetInboxMenu ? (
@@ -2694,200 +2648,6 @@ function SearchableProjectPickerWithMenu({
       />
       {projectMenu.element}
     </>
-  );
-}
-
-/** Zen-style spaces at the foot of the inset sidebar: each project's logo or
- * mascot, the current one lifted, and a way to open another. */
-/** Projects the spaces bar shows at once; the chevrons page through more. */
-const SPACES_SHOWN = 5;
-
-function ProjectSpacesBar({
-  projects,
-  cwd,
-  busyProjectPaths,
-  onSelectProject,
-  onProjectContextMenu,
-}: {
-  projects: readonly string[];
-  cwd: string;
-  busyProjectPaths?: Iterable<string>;
-  onSelectProject: (path: string) => void;
-  onProjectContextMenu: (
-    path: string,
-    x: number,
-    y: number,
-    trigger: HTMLElement,
-  ) => void;
-}) {
-  const projectTooltip = useRailTooltip("top");
-  const shortcuts = useSyncExternalStore(subscribeKeybindings, () =>
-    [
-      keybindingShortcutLabel("Project: Previous", `${MOD}${SHIFT}←`),
-      keybindingShortcutLabel("Project: Next", `${MOD}${SHIFT}→`),
-    ]
-      .filter(Boolean)
-      .join(" / "),
-  );
-  const shown = Math.min(projects.length, SPACES_SHOWN);
-  const lastStart = Math.max(0, projects.length - shown);
-  const activeIndex = projects.findIndex((path) => sameProjectPath(path, cwd));
-  const [start, setStart] = useState(() =>
-    Math.min(lastStart, Math.max(0, activeIndex - shown + 1)),
-  );
-  // Bring the current project into view when it changes from elsewhere,
-  // moving the window no further than it needs to.
-  useEffect(() => {
-    if (activeIndex < 0) return;
-    setStart((current) =>
-      activeIndex < current
-        ? activeIndex
-        : activeIndex >= current + shown
-          ? activeIndex - shown + 1
-          : current,
-    );
-  }, [activeIndex, shown]);
-  const first = Math.min(start, lastStart);
-  const visible = projects.slice(first, first + shown);
-  const rowRef = useRef<HTMLDivElement>(null);
-  const step = (direction: -1 | 1) => {
-    const next = Math.min(lastStart, Math.max(0, first + direction));
-    if (next === first) return;
-    setStart(next);
-    // A short slide in from the side the new project comes from.
-    const row = rowRef.current;
-    if (
-      !row ||
-      typeof row.animate !== "function" ||
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-    )
-      return;
-    row.animate(
-      [
-        { transform: `translateX(${direction * 12}px)`, opacity: 0.4 },
-        { transform: "none", opacity: 1 },
-      ],
-      { duration: 200, easing: "cubic-bezier(0.32, 0.72, 0, 1)" },
-    );
-  };
-  const chevron = (direction: -1 | 1) => {
-    const disabled = direction < 0 ? first <= 0 : first >= lastStart;
-    const Icon = direction < 0 ? ChevronLeft : ChevronRight;
-    const label = direction < 0 ? "Previous projects" : "More projects";
-    return (
-      <button
-        type="button"
-        title={label}
-        aria-label={label}
-        disabled={disabled}
-        data-tauri-drag-region="false"
-        onClick={() => step(direction)}
-        className="grid size-5 shrink-0 place-items-center rounded-md text-content/50 hover:bg-content/10 hover:text-content disabled:pointer-events-none disabled:opacity-30"
-      >
-        <Icon className="size-3.5" strokeWidth={1.75} />
-      </button>
-    );
-  };
-  return (
-    // As tall as the usage footer beside it, so the two read as one strip.
-    // A mini carousel: up to five spaces spread evenly, chevrons either side.
-    // Its edges line up with the rows above, and its controls with the usage
-    // footer's; each space takes an equal share.
-    <div
-      {...projectTooltip.handlers}
-      className="flex h-[30px] shrink-0 items-center gap-1 px-2 pb-0.5"
-    >
-      {chevron(-1)}
-      <div className="min-w-0 flex-1 overflow-hidden">
-        <div
-          ref={rowRef}
-          role="tablist"
-          aria-label="Projects"
-          className="flex w-full items-center gap-1"
-        >
-          {visible.map((path) => (
-            <ProjectSpaceButton
-              key={path}
-              path={path}
-              active={sameProjectPath(path, cwd)}
-              busy={projectPathBusy(busyProjectPaths, path)}
-              shortcuts={shortcuts}
-              onSelect={() => onSelectProject(path)}
-              onContextMenu={(x, y, trigger) =>
-                onProjectContextMenu(path, x, y, trigger)
-              }
-            />
-          ))}
-        </div>
-      </div>
-      {chevron(1)}
-      {projectTooltip.tooltip}
-    </div>
-  );
-}
-
-function ProjectSpaceButton({
-  path,
-  active,
-  busy,
-  shortcuts,
-  onSelect,
-  onContextMenu,
-}: {
-  path: string;
-  active: boolean;
-  busy: boolean;
-  shortcuts: string;
-  onSelect: () => void;
-  onContextMenu: (x: number, y: number, trigger: HTMLElement) => void;
-}) {
-  const label = useProjectLabel(path);
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      aria-label={busy ? `${label}, working` : label}
-      data-rail-tip={label}
-      data-rail-tip-detail={shortcuts || undefined}
-      data-tauri-drag-region="false"
-      onClick={active ? undefined : onSelect}
-      onContextMenu={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        event.currentTarget.focus();
-        onContextMenu(event.clientX, event.clientY, event.currentTarget);
-      }}
-      onKeyDown={(event) => {
-        if (
-          event.key !== "ContextMenu" &&
-          !(event.shiftKey && event.key === "F10")
-        )
-          return;
-        event.preventDefault();
-        event.stopPropagation();
-        const rect = event.currentTarget.getBoundingClientRect();
-        onContextMenu(rect.left, rect.bottom, event.currentTarget);
-      }}
-      className={`relative grid h-5 min-w-0 flex-1 place-items-center rounded-md transition-[opacity,background-color] duration-200 ease-out motion-reduce:transition-none ${
-        active
-          ? "bg-content/10 opacity-100"
-          : "opacity-45 hover:bg-content/5 hover:opacity-100"
-      }`}
-    >
-      <CurrentProjectIcon
-        cwd={path}
-        busy={busy}
-        className="size-3"
-        mascotClassName="size-2.5"
-      />
-      {busy && !active ? (
-        <span
-          aria-hidden
-          className="absolute right-1 top-0.5 size-1.5 rounded-full bg-accent"
-        />
-      ) : null}
-    </button>
   );
 }
 
