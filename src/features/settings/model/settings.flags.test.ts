@@ -46,13 +46,6 @@ describe.each([
     undefined,
   ],
   [
-    "monocode.composerRunner",
-    settings.loadComposerRunner,
-    settings.saveComposerRunner,
-    true,
-    "monocode:composer-runner-change",
-  ],
-  [
     "monocode.notesEnabled",
     settings.loadNotesEnabled,
     settings.saveNotesEnabled,

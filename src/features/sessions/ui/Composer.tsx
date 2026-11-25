@@ -97,7 +97,6 @@ import {
   type SlashToken,
 } from "../../skills/model/skills";
 import { AccessPicker } from "./AccessPicker";
-import { ComposerRunner } from "./ComposerRunner";
 import { ContextMeter } from "./ContextMeter";
 import { AttachmentChip } from "./AttachmentChip";
 import { BranchPicker } from "../../source-control/ui/BranchPicker";
@@ -124,8 +123,6 @@ import { consumeQuoteRequest, type QuoteRequest } from "../model/quoteDraft";
 import { useTabGroupLogos } from "../../projects/hooks/useTabGroupLogos";
 import { useProjectBranchesState } from "../../source-control/hooks/useProjectBranches";
 import {
-  COMPOSER_RUNNER_CHANGE_EVENT,
-  loadComposerRunner,
   loadModelControls,
   loadNotesEnabled,
   subscribeModelControls,
@@ -530,11 +527,7 @@ export function Composer({
   const [mention, setMention] = useState<MentionToken | null>(null);
   const [mentionActive, setMentionActive] = useState(0);
   const [resendEdited, setResendEdited] = useState(false);
-  const [runnerEnabled, setRunnerEnabled] = useState(loadComposerRunner);
   const autocorrect = useComposerAutocorrect();
-  const [runnerLive, setRunnerLive] = useState(
-    () => busy && loadComposerRunner(),
-  );
   const groupLogos = useTabGroupLogos();
   const projectLogoPath = resolveTabGroupLogo(projectKey(cwd), groupLogos);
 
@@ -830,21 +823,6 @@ export function Composer({
     setAttachments([]);
     syncHasValue(ref.current?.value ?? "", []);
   }, [harness, syncHasValue]);
-  useEffect(() => {
-    const refresh = () => setRunnerEnabled(loadComposerRunner());
-    window.addEventListener(COMPOSER_RUNNER_CHANGE_EVENT, refresh);
-    return () =>
-      window.removeEventListener(COMPOSER_RUNNER_CHANGE_EVENT, refresh);
-  }, []);
-
-  useEffect(() => {
-    if (!runnerEnabled) {
-      setRunnerLive(false);
-      return;
-    }
-    if (busy) setRunnerLive(true);
-  }, [busy, runnerEnabled]);
-
   useEffect(() => {
     setSkillActive(0);
   }, [slash?.query, cwd]);
@@ -2464,15 +2442,6 @@ export function Composer({
           </div>
         </div>
         {workspaceBarOutside ? workspaceBar : null}
-        {runnerLive && runnerEnabled && !remote ? (
-          <ComposerRunner
-            boxRef={boxRef}
-            cwd={cwd}
-            busy={busy}
-            enabled={enabled}
-            onExited={() => setRunnerLive(false)}
-          />
-        ) : null}
       </div>
     </div>
   );

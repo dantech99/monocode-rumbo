@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  COMPOSER_RUNNER_DEFAULT,
   AUTOSAVE_DEFAULT,
   COLLAPSED_PROJECT_RAIL_MODE_DEFAULT,
   searchSettings,
@@ -17,7 +16,6 @@ import {
   KEYBINDINGS,
   LIVE_AGENTS_ENABLED_DEFAULT,
   TAB_ANIMATIONS_ENABLED_DEFAULT,
-  loadComposerRunner,
   loadAutosave,
   loadCollapsedProjectRailMode,
   loadModelControls,
@@ -34,7 +32,6 @@ import {
   loadQuickComposerShortcut,
   loadTabAnimationsEnabled,
   NOTES_ENABLED_DEFAULT,
-  saveComposerRunner,
   saveAutosave,
   saveCollapsedProjectRailMode,
   saveModelControls,
@@ -52,7 +49,6 @@ import {
 } from "./settings";
 import { IS_MAC, MOD, SHIFT } from "../../../platform/tauri/platform";
 
-const KEY = "monocode.composerRunner";
 const MODEL_CONTROLS_KEY = "monocode.modelControls";
 const LEGACY_EFFORT_VISIBLE_KEY = "monocode.composerEffortVisible";
 const NOTES_KEY = "monocode.notesEnabled";
@@ -113,26 +109,6 @@ function mockLocalStorage() {
     configurable: true,
   });
 }
-
-describe("composer runner setting", () => {
-  beforeEach(mockLocalStorage);
-  afterEach(() => {
-    localStorage.removeItem(KEY);
-  });
-
-  it("defaults to on", () => {
-    expect(COMPOSER_RUNNER_DEFAULT).toBe(true);
-    expect(loadComposerRunner()).toBe(true);
-  });
-
-  it("persists an off switch", () => {
-    saveComposerRunner(false);
-    expect(localStorage.getItem(KEY)).toBe("0");
-    expect(loadComposerRunner()).toBe(false);
-    saveComposerRunner(true);
-    expect(loadComposerRunner()).toBe(true);
-  });
-});
 
 describe("model controls setting", () => {
   beforeEach(mockLocalStorage);

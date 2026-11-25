@@ -383,12 +383,6 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
     keywords: "spelling spell check autocorrect typo macos composer",
   },
   {
-    id: "composer-mascot",
-    section: "chat",
-    label: "Composer mascot",
-    keywords: "runner animation coin fun",
-  },
-  {
     id: "format-on-save",
     section: "chat",
     label: "Format on save",
@@ -598,7 +592,6 @@ export function saveSettingsSection(id: SettingsSectionId) {
   }
 }
 
-const COMPOSER_RUNNER_KEY = "monocode.composerRunner";
 
 const FOLLOW_UP_BEHAVIOR_KEY = "monocode.followUpBehavior";
 
@@ -755,23 +748,6 @@ export function subscribeModelControls(onStoreChange: () => void) {
   window.addEventListener(MODEL_CONTROLS_CHANGE_EVENT, onStoreChange);
   return () =>
     window.removeEventListener(MODEL_CONTROLS_CHANGE_EVENT, onStoreChange);
-}
-
-export const COMPOSER_RUNNER_DEFAULT = true;
-
-/** Fired on `window` when the composer mascot setting flips. */
-export const COMPOSER_RUNNER_CHANGE_EVENT = "monocode:composer-runner-change";
-
-export function loadComposerRunner(): boolean {
-  return readFlag(COMPOSER_RUNNER_KEY) ?? COMPOSER_RUNNER_DEFAULT;
-}
-
-export function saveComposerRunner(value: boolean) {
-  writeFlag(COMPOSER_RUNNER_KEY, value);
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(
-    new CustomEvent<boolean>(COMPOSER_RUNNER_CHANGE_EVENT, { detail: value }),
-  );
 }
 
 const NOTES_ENABLED_KEY = "monocode.notesEnabled";

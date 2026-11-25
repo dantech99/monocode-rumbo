@@ -2678,29 +2678,6 @@ html:not(.theme-light) .markdown-code-token {
   }
 }
 
-.composer-coin-face {
-  animation: mascot-rest 320ms infinite;
-}
-
-.composer-coin-edge {
-  animation: mascot-talk 320ms infinite;
-}
-
-/* Freeze the hop while the runner is seeing stars after a chevron bonk. */
-.mascot-stunned .mascot-active,
-.mascot-stunned .mascot-rest,
-.mascot-stunned .mascot-talk {
-  animation: none;
-}
-
-.mascot-stunned .mascot-rest {
-  opacity: 1;
-}
-
-.mascot-stunned .mascot-talk {
-  opacity: 0;
-}
-
 /* New bubbles pop up from their bottom corner with a little overshoot, the
    way a sent message lifts off the composer. */
 .agent-chat-bubble-in-left,
