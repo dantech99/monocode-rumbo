@@ -379,6 +379,7 @@ pub fn run() {
             fs::git_branches,
             fs::git_checkout,
             fs::git_create_branch,
+            fs::git_delete_branch,
             fs::git_stash,
             worktrees::git_worktrees,
             worktrees::git_worktree_create,

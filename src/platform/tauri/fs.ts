@@ -423,6 +423,11 @@ export type GitBranchInfo = {
   name: string;
   current: boolean;
   remote: string | null;
+  /** Tip commit of the branch; absent for a branch with no commits yet. */
+  author?: string | null;
+  /** Tip commit time, unix seconds. */
+  date?: number | null;
+  subject?: string | null;
 };
 
 export type GitBranches = {
@@ -445,6 +450,15 @@ export function gitCheckout(
 
 export function gitCreateBranch(cwd: string, name: string): Promise<string> {
   return invoke<string>("git_create_branch", { cwd, name });
+}
+
+/** Deletes a local branch; without `force`, git refuses an unmerged one. */
+export function gitDeleteBranch(
+  cwd: string,
+  name: string,
+  force = false,
+): Promise<void> {
+  return invoke<void>("git_delete_branch", { cwd, name, force });
 }
 
 export function gitStash(cwd: string, message?: string): Promise<void> {

@@ -1,5 +1,12 @@
-import { Check, GitBranch, Plus, Search } from "../../../shared/ui/icons";
 import {
+  Check,
+  GitBranch,
+  Plus,
+  Search,
+  Trash2,
+} from "../../../shared/ui/icons";
+import {
+  Fragment,
   useEffect,
   useMemo,
   useRef,
@@ -10,6 +17,7 @@ import {
   gitCheckout,
   gitCommit,
   gitCreateBranch,
+  gitDeleteBranch,
   gitStageAll,
   gitStash,
   isCheckoutBlockedByChanges,
@@ -22,6 +30,8 @@ import { CreateBranchDialog } from "./CreateBranchDialog";
 import { GitPickerTrigger } from "./GitPickerTrigger";
 import { Popover } from "../../../shared/ui/Popover";
 import { SwitchBranchDialog } from "./SwitchBranchDialog";
+import { isLocalProject } from "../../projects/model/recents";
+import { formatRelativeTime } from "../../inbox/model/githubTasks";
 
 type Props = {
   cwd: string;
@@ -36,7 +46,7 @@ type Props = {
   popoverSide?: "top" | "bottom";
 };
 
-const MENU_WIDTH = 280;
+const MENU_WIDTH = 340;
 
 type CreateRow = { kind: "create"; name: string };
 type BranchRow = { kind: "branch"; branch: GitBranchInfo };
@@ -47,7 +57,7 @@ type PendingSwitch =
   | { kind: "checkout"; name: string; remote: string | null };
 
 const MENU_MIN_HEIGHT = 180;
-const MENU_MAX_HEIGHT = 280;
+const MENU_MAX_HEIGHT = 380;
 
 export function BranchPicker({
   cwd,
@@ -67,6 +77,8 @@ export function BranchPicker({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  /** A branch git refused to delete as unmerged, waiting for a forced delete. */
+  const [confirmForce, setConfirmForce] = useState<string | null>(null);
   const [blocked, setBlocked] = useState<PendingSwitch | null>(null);
   const [blockedError, setBlockedError] = useState<string | null>(null);
   const [blockedBusy, setBlockedBusy] = useState<"stash" | "commit" | null>(
@@ -207,6 +219,24 @@ export function BranchPicker({
       setError(message);
       setBusy(false);
       if (source === "picker") search.current?.focus();
+    }
+  };
+
+  const removeBranch = async (name: string, force: boolean) => {
+    if (busy || blocked) return;
+    setBusy(true);
+    setError(null);
+    setConfirmForce(null);
+    try {
+      await gitDeleteBranch(cwd, name, force);
+      notifyGitChanged();
+    } catch (err) {
+      const message = failMessage(err);
+      if (!force && message.includes("not fully merged")) setConfirmForce(name);
+      else setError(message);
+    } finally {
+      setBusy(false);
+      search.current?.focus();
     }
   };
 
@@ -399,9 +429,35 @@ export function BranchPicker({
             active={active}
             busy={busy}
             emptyLabel={query.trim() ? "No matching branches" : "No branches"}
+            canDelete={isLocalProject(cwd)}
             onActive={setActive}
             onPick={pick}
+            onDelete={(name) => void removeBranch(name, false)}
           />
+          {confirmForce ? (
+            <div className="flex shrink-0 items-center gap-2 border-t border-stroke px-2.5 py-2 text-[11px] leading-4 text-content/70">
+              <span className="min-w-0 flex-1">
+                <span className="font-medium">{confirmForce}</span> is not fully
+                merged. Delete it anyway?
+              </span>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setConfirmForce(null)}
+                className="shrink-0 rounded-md px-2 py-1 hover:bg-content/8"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => void removeBranch(confirmForce, true)}
+                className="shrink-0 rounded-md bg-red-500/15 px-2 py-1 text-red-300 hover:bg-red-500/25"
+              >
+                Delete
+              </button>
+            </div>
+          ) : null}
           {error ? (
             <p className="max-h-16 shrink-0 overflow-y-auto whitespace-pre-wrap border-t border-stroke px-2.5 py-2 text-[11px] leading-4 text-red-400/90">
               {error}
@@ -436,18 +492,22 @@ function BranchList({
   active,
   busy,
   emptyLabel,
+  canDelete,
   onActive,
   onPick,
+  onDelete,
 }: {
   rows: BranchRow[];
   active: number;
   busy: boolean;
   emptyLabel: string;
+  canDelete: boolean;
   onActive: (index: number) => void;
   onPick: (row: BranchRow) => void;
+  onDelete: (name: string) => void;
 }) {
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
-  const activeRef = useRef<HTMLButtonElement>(null);
+  const activeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     activeRef.current?.scrollIntoView({ block: "nearest" });
@@ -461,6 +521,7 @@ function BranchList({
     );
   }
 
+  const firstRemote = rows.findIndex((row) => row.branch.remote);
   return (
     <div
       ref={lockOverscroll}
@@ -471,44 +532,104 @@ function BranchList({
       {rows.map((row, index) => {
         const highlighted = index === active;
         const selected = row.branch.current;
+        const heading =
+          index === 0 && !row.branch.remote
+            ? "Local Branches"
+            : index === firstRemote
+              ? "Remote Branches"
+              : null;
+        const detail = branchDetail(row.branch);
+        const deletable = canDelete && !row.branch.remote && !selected;
         return (
-          <button
-            key={`${row.branch.remote ?? "local"}:${row.branch.name}`}
-            ref={highlighted ? activeRef : undefined}
-            type="button"
-            role="option"
-            aria-selected={selected}
-            disabled={busy}
-            onMouseDown={(e) => e.preventDefault()}
-            onMouseEnter={() => onActive(index)}
-            onClick={() => onPick(row)}
-            className={`flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-[13px] disabled:opacity-60 ${
-              highlighted || selected
-                ? "bg-selection text-content"
-                : "text-content hover:bg-content/5"
-            }`}
-          >
-            {selected ? (
-              <Check className="size-3.5 shrink-0" strokeWidth={1.75} />
-            ) : (
-              <GitBranch
-                className="size-3.5 shrink-0 text-content/50"
-                strokeWidth={1.75}
-              />
-            )}
-            <span
-              className={`min-w-0 flex-1 truncate ${selected ? "font-medium" : ""}`}
-            >
-              {row.branch.name}
-            </span>
-            {row.branch.remote ? (
-              <span className="shrink-0 rounded bg-content/6 px-1.5 py-0.5 text-[10px] text-content/40">
-                {row.branch.remote}
-              </span>
+          <Fragment key={`${row.branch.remote ?? "local"}:${row.branch.name}`}>
+            {heading ? (
+              <div className="px-2 pb-1 pt-1.5 text-[11px] text-content/40">
+                {heading}
+              </div>
             ) : null}
-          </button>
+            <div
+              ref={highlighted ? activeRef : undefined}
+              role="option"
+              aria-selected={selected}
+              aria-disabled={busy}
+              onMouseDown={(e) => e.preventDefault()}
+              onMouseEnter={() => onActive(index)}
+              onClick={() => {
+                if (!busy) onPick(row);
+              }}
+              className={`group flex min-h-10 w-full cursor-default items-center gap-2 rounded-lg px-2 py-1 text-left text-[13px] ${
+                busy ? "opacity-60" : ""
+              } ${
+                highlighted || selected
+                  ? "bg-selection text-content"
+                  : "text-content hover:bg-content/5"
+              }`}
+            >
+              {selected ? (
+                <Check className="size-3.5 shrink-0" strokeWidth={1.75} />
+              ) : (
+                <GitBranch
+                  className="size-3.5 shrink-0 text-content/50"
+                  strokeWidth={1.75}
+                />
+              )}
+              <span className="min-w-0 flex-1">
+                <span
+                  className={`block truncate ${selected ? "font-medium" : ""}`}
+                >
+                  {row.branch.remote
+                    ? `${row.branch.remote}/${row.branch.name}`
+                    : row.branch.name}
+                </span>
+                {detail ? (
+                  <span className="block truncate text-[11px] text-content/45">
+                    {detail}
+                  </span>
+                ) : null}
+              </span>
+              {deletable ? (
+                <button
+                  type="button"
+                  title={`Delete ${row.branch.name}`}
+                  aria-label={`Delete branch ${row.branch.name}`}
+                  disabled={busy}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(row.branch.name);
+                  }}
+                  className={`grid size-6 shrink-0 place-items-center rounded-md text-content/50 hover:bg-content/10 hover:text-content focus-visible:opacity-100 ${
+                    highlighted
+                      ? "opacity-100"
+                      : "opacity-0 group-hover:opacity-100"
+                  }`}
+                >
+                  <Trash2 className="size-3.5" strokeWidth={1.75} />
+                </button>
+              ) : null}
+            </div>
+          </Fragment>
         );
       })}
     </div>
   );
+}
+
+/** "Author · 4 hours ago · commit subject", skipping what git did not give. */
+export function branchDetail(
+  branch: GitBranchInfo,
+  now = Date.now(),
+  locale?: string,
+): string {
+  const when =
+    branch.date != null
+      ? formatRelativeTime(
+          new Date(branch.date * 1000).toISOString(),
+          now,
+          locale,
+        )
+      : "";
+  return [branch.author, when, branch.subject]
+    .filter((part): part is string => !!part)
+    .join(" · ");
 }

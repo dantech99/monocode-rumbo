@@ -13,17 +13,19 @@ vi.mock("../../../platform/tauri/fs", () => ({
   gitCheckout: vi.fn(),
   gitCommit: vi.fn(),
   gitCreateBranch: vi.fn(),
+  gitDeleteBranch: vi.fn(),
   gitStageAll: vi.fn(),
   gitStash: vi.fn(),
   isCheckoutBlockedByChanges: () => false,
   notifyGitChanged: vi.fn(),
 }));
 
-import { BranchPicker } from "./BranchPicker";
+import { BranchPicker, branchDetail } from "./BranchPicker";
 import {
   gitBranches,
   gitCheckout,
   gitCreateBranch,
+  gitDeleteBranch,
 } from "../../../platform/tauri/fs";
 
 let container: HTMLDivElement;
@@ -82,7 +84,9 @@ it("uses the interface typeface for branch names and search", async () => {
   const search = picker.querySelector<HTMLInputElement>(
     'input[aria-label="Search or create a branch"]',
   )!;
-  const branchName = picker.querySelector<HTMLElement>('[role="option"] span')!;
+  const branchName = picker.querySelector<HTMLElement>(
+    '[role="option"] span span',
+  )!;
 
   expect(search.className).toContain("font-sans");
   expect(branchName.className).not.toContain("font-mono");
@@ -196,9 +200,8 @@ it("checks out the highlighted matching branch when Enter is pressed", async () 
   });
 
   const picker = document.querySelector<HTMLElement>("[data-branch-picker]")!;
-  const highlighted = picker.querySelector<HTMLButtonElement>(
-    '[role="option"]',
-  )!;
+  const highlighted =
+    picker.querySelector<HTMLButtonElement>('[role="option"]')!;
   expect(highlighted.textContent).toContain("feature/picker");
   expect(
     [...picker.querySelectorAll<HTMLButtonElement>("button")].some(
@@ -221,4 +224,110 @@ it("checks out the highlighted matching branch when Enter is pressed", async () 
     "/repo-enter-existing",
     "picker",
   );
+});
+
+const TWO_BRANCHES = {
+  current: "main",
+  detached: false,
+  branches: [
+    {
+      name: "main",
+      current: true,
+      remote: null,
+      author: "Ana",
+      date: 1_700_000_000,
+      subject: "Merge pull request",
+    },
+    { name: "feature/x", current: false, remote: null },
+    { name: "release", current: false, remote: "origin" },
+  ],
+};
+
+async function openPicker() {
+  vi.mocked(gitBranches).mockResolvedValue(TWO_BRANCHES);
+  act(() =>
+    root.render(createElement(BranchPicker, { cwd: "/repo", branch: "main" })),
+  );
+  await act(async () => {});
+  await act(async () => container.querySelector("button")!.click());
+  await act(async () => {});
+  return document.querySelector<HTMLElement>("[data-branch-picker]")!;
+}
+
+it("groups local and remote branches under headings with tip details", async () => {
+  const picker = await openPicker();
+  const text = picker.textContent ?? "";
+  expect(text).toContain("Local Branches");
+  expect(text).toContain("Remote Branches");
+  expect(text).toContain("origin/release");
+  expect(text).toContain("Ana");
+  expect(text).toContain("Merge pull request");
+});
+
+it("only offers delete for local branches that are not checked out", async () => {
+  const picker = await openPicker();
+  expect(picker.querySelector('[aria-label="Delete branch main"]')).toBeNull();
+  expect(
+    picker.querySelector('[aria-label="Delete branch release"]'),
+  ).toBeNull();
+  expect(
+    picker.querySelector('[aria-label="Delete branch feature/x"]'),
+  ).not.toBeNull();
+});
+
+it("deletes a branch without switching to it", async () => {
+  vi.mocked(gitDeleteBranch).mockResolvedValue(undefined);
+  const picker = await openPicker();
+  await act(async () =>
+    picker
+      .querySelector<HTMLButtonElement>(
+        '[aria-label="Delete branch feature/x"]',
+      )!
+      .click(),
+  );
+  expect(gitDeleteBranch).toHaveBeenCalledWith("/repo", "feature/x", false);
+  expect(gitCheckout).not.toHaveBeenCalled();
+});
+
+it("asks before force-deleting an unmerged branch", async () => {
+  vi.mocked(gitDeleteBranch)
+    .mockRejectedValueOnce(new Error("Branch feature/x is not fully merged"))
+    .mockResolvedValueOnce(undefined);
+  const picker = await openPicker();
+  await act(async () =>
+    picker
+      .querySelector<HTMLButtonElement>(
+        '[aria-label="Delete branch feature/x"]',
+      )!
+      .click(),
+  );
+  expect(picker.textContent).toContain(
+    "is not fully merged. Delete it anyway?",
+  );
+  expect(gitDeleteBranch).toHaveBeenCalledTimes(1);
+
+  const confirm = [...picker.querySelectorAll("button")].find(
+    (button) => button.textContent === "Delete",
+  )!;
+  await act(async () => confirm.click());
+  expect(gitDeleteBranch).toHaveBeenLastCalledWith("/repo", "feature/x", true);
+});
+
+it("describes a branch tip, skipping what git did not give", () => {
+  const now = 1_700_000_000_000 + 4 * 3600_000;
+  expect(
+    branchDetail(
+      {
+        name: "a",
+        current: false,
+        remote: null,
+        author: "Ana",
+        date: 1_700_000_000,
+        subject: "fix",
+      },
+      now,
+      "en",
+    ),
+  ).toBe("Ana · 4 hours ago · fix");
+  expect(branchDetail({ name: "a", current: false, remote: null })).toBe("");
 });

@@ -1736,6 +1736,35 @@ pub struct GitBranchEntry {
     pub name: String,
     pub current: bool,
     pub remote: Option<String>,
+    /// Author of the branch's tip commit.
+    pub author: Option<String>,
+    /// Committer time of the tip commit, in unix seconds.
+    pub date: Option<i64>,
+    /// Subject line of the tip commit.
+    pub subject: Option<String>,
+}
+
+/// Tip commit details parsed from a `for-each-ref` line.
+#[derive(Default, Clone)]
+struct BranchTip {
+    author: Option<String>,
+    date: Option<i64>,
+    subject: Option<String>,
+}
+
+impl BranchTip {
+    /// `author\tunix-date\tsubject`; the subject goes last so it may hold tabs.
+    fn parse(fields: &str) -> Self {
+        let mut parts = fields.splitn(3, '\t');
+        let author = parts.next().map(str::trim).filter(|v| !v.is_empty());
+        let date = parts.next().and_then(|v| v.trim().parse::<i64>().ok());
+        let subject = parts.next().map(str::trim).filter(|v| !v.is_empty());
+        Self {
+            author: author.map(str::to_string),
+            date,
+            subject: subject.map(str::to_string),
+        }
+    }
 }
 
 /// Local branches, plus remote-only branches that can be checked out.
@@ -1766,6 +1795,16 @@ pub async fn git_create_branch(cwd: String, name: String) -> Result<String, Stri
     tauri::async_runtime::spawn_blocking(move || git_create_branch_for(&expand_home(&cwd), &name))
         .await
         .map_err(|e| e.to_string())?
+}
+
+/// Delete a local branch. Without `force`, git refuses an unmerged branch.
+#[tauri::command]
+pub async fn git_delete_branch(cwd: String, name: String, force: bool) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        git_delete_branch_for(&expand_home(&cwd), &name, force)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Stash tracked and untracked local changes so a checkout can proceed.
@@ -4784,7 +4823,7 @@ fn git_branches_for(root: &Path) -> GitBranches {
         root,
         &[
             "for-each-ref",
-            "--format=%(refname:short)\t%(HEAD)",
+            "--format=%(refname:short)\t%(HEAD)\t%(authorname)\t%(committerdate:unix)\t%(subject)",
             "refs/heads",
         ],
     ) {
@@ -4793,15 +4832,20 @@ fn git_branches_for(root: &Path) -> GitBranches {
             if line.is_empty() {
                 continue;
             }
-            let (name, head) = line.split_once('\t').unwrap_or((line, ""));
+            let (name, rest) = line.split_once('\t').unwrap_or((line, ""));
+            let (head, tip) = rest.split_once('\t').unwrap_or((rest, ""));
             if name.is_empty() {
                 continue;
             }
             local_names.insert(name.to_string());
+            let tip = BranchTip::parse(tip);
             branches.push(GitBranchEntry {
                 name: name.to_string(),
                 current: head.trim() == "*",
                 remote: None,
+                author: tip.author,
+                date: tip.date,
+                subject: tip.subject,
             });
         }
     }
@@ -4813,16 +4857,24 @@ fn git_branches_for(root: &Path) -> GitBranches {
                 name: name.clone(),
                 current: true,
                 remote: None,
+                author: None,
+                date: None,
+                subject: None,
             });
         }
     }
 
     if let Some(text) = git_run(
         root,
-        &["for-each-ref", "--format=%(refname:short)", "refs/remotes"],
+        &[
+            "for-each-ref",
+            "--format=%(refname:short)\t%(authorname)\t%(committerdate:unix)\t%(subject)",
+            "refs/remotes",
+        ],
     ) {
         for line in text.lines() {
-            let full = line.trim();
+            let (full, tip) = line.split_once('\t').unwrap_or((line, ""));
+            let full = full.trim();
             if full.is_empty() {
                 continue;
             }
@@ -4835,10 +4887,14 @@ fn git_branches_for(root: &Path) -> GitBranches {
             if local_names.contains(name) {
                 continue;
             }
+            let tip = BranchTip::parse(tip);
             branches.push(GitBranchEntry {
                 name: name.to_string(),
                 current: false,
                 remote: Some(remote.to_string()),
+                author: tip.author,
+                date: tip.date,
+                subject: tip.subject,
             });
         }
     }
@@ -4903,6 +4959,35 @@ fn git_create_branch_for(root: &Path, name: &str) -> Result<String, String> {
     }
     git_switch(root, &["checkout", "-b", &name])?;
     Ok(name)
+}
+
+fn git_delete_branch_for(root: &Path, name: &str, force: bool) -> Result<(), String> {
+    if !git_is_work_tree(root) {
+        return Err("Not a git repository".into());
+    }
+    let name = git_branch_name(root, name)?;
+    if git_head_branch(root).as_deref() == Some(name.as_str()) {
+        return Err(format!("Cannot delete {name}: it is checked out"));
+    }
+    if !git_ref_exists(root, &format!("refs/heads/{name}")) {
+        return Err(format!("Branch {name} not found"));
+    }
+    if !force {
+        let merged = git_cmd()
+            .arg("-C")
+            .arg(root)
+            .args(["merge-base", "--is-ancestor"])
+            .arg(format!("refs/heads/{name}"))
+            .arg("HEAD")
+            .env("GIT_OPTIONAL_LOCKS", "0")
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false);
+        if !merged {
+            return Err(format!("Branch {name} is not fully merged"));
+        }
+    }
+    git_checked(root, &["branch", "-D", "--", &name])
 }
 
 fn git_stash_for(root: &Path, message: Option<&str>) -> Result<(), String> {
@@ -9616,6 +9701,62 @@ mod tests {
             std::fs::read_to_string(dir.0.join("a.txt")).unwrap(),
             "feature\n"
         );
+    }
+
+    #[test]
+    fn git_branches_carry_tip_commit_details() {
+        let dir = tmp("git-branch-tip");
+        if !init_git_commit(&dir.0, &[("a.txt", "main\n")]) {
+            return;
+        }
+        let listed = git_branches_for(&dir.0);
+        let main = listed
+            .branches
+            .iter()
+            .find(|branch| branch.name == "main")
+            .unwrap();
+        assert!(main.date.is_some_and(|date| date > 0));
+        assert!(main.subject.is_some());
+        assert!(main.author.is_some());
+    }
+
+    #[test]
+    fn git_delete_branch_removes_merged_and_guards_the_rest() {
+        let dir = tmp("git-delete-branch");
+        if !init_git_commit(&dir.0, &[("a.txt", "main\n")]) {
+            return;
+        }
+        if git_create_branch_for(&dir.0, "merged").is_err()
+            || git_checkout_for(&dir.0, "main", None).is_err()
+        {
+            return;
+        }
+        assert!(git_delete_branch_for(&dir.0, "main", false)
+            .unwrap_err()
+            .contains("checked out"));
+        assert!(git_delete_branch_for(&dir.0, "ghost", false)
+            .unwrap_err()
+            .contains("not found"));
+        git_delete_branch_for(&dir.0, "merged", false).unwrap();
+        assert!(!git_branches_for(&dir.0)
+            .branches
+            .iter()
+            .any(|branch| branch.name == "merged"));
+
+        // An unmerged branch needs force.
+        if git_create_branch_for(&dir.0, "wip").is_err() {
+            return;
+        }
+        std::fs::write(dir.0.join("b.txt"), "wip\n").unwrap();
+        if !git(&dir.0, &["add", "."])
+            || !git(&dir.0, &["commit", "-m", "wip"])
+            || git_checkout_for(&dir.0, "main", None).is_err()
+        {
+            return;
+        }
+        let err = git_delete_branch_for(&dir.0, "wip", false).unwrap_err();
+        assert!(err.contains("not fully merged"), "{err}");
+        git_delete_branch_for(&dir.0, "wip", true).unwrap();
     }
 
     #[test]
