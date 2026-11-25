@@ -1,5 +1,6 @@
 import { ask } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { BranchPicker } from "./BranchPicker";
 import {
   Check,
   ChevronDown,
@@ -8,7 +9,6 @@ import {
   ExternalLink,
   FileDiff,
   FolderTree,
-  GitBranch,
   GitPullRequest,
   ListBullet,
   Loader,
@@ -210,8 +210,13 @@ export function GitChangesPanel({
         {index?.branch ? (
           <div className="relative ml-auto flex min-w-0 items-center gap-2">
             <span className="flex min-w-0 items-center gap-1 text-[11px] text-content/50">
-              <GitBranch className="size-3 shrink-0" strokeWidth={1.75} />
-              <span className="min-w-0 truncate">{index.branch}</span>
+              <BranchPicker
+                cwd={cwd}
+                branch={index.branch}
+                enabled={busy === null}
+                popoverSide="bottom"
+                onChange={reload}
+              />
               {index.ahead > 0 ? (
                 <span className="shrink-0 tabular-nums text-content/40">
                   ↑{index.ahead}

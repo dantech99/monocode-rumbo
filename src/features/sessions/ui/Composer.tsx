@@ -227,6 +227,8 @@ type Props = {
   recents?: RecentProject[];
   hideProjectPicker?: boolean;
   hideBranchPicker?: boolean;
+  /** Lets the branch chip switch branches; otherwise it is informational. */
+  branchSwitching?: boolean;
   hideTopBar?: boolean;
   /** Keeps local file mentions, skills, and app modes off for host sessions. */
   remoteSession?: boolean;
@@ -356,6 +358,7 @@ export function Composer({
   recents = [],
   hideProjectPicker = false,
   hideBranchPicker = false,
+  branchSwitching = false,
   hideTopBar = false,
   remoteSession = false,
   remoteFeatures,
@@ -1784,6 +1787,7 @@ export function Composer({
             <BranchPicker
               cwd={executionCwd}
               branch={branch}
+              readOnly={!branchSwitching}
               enabled={enabled && !busy}
               onChange={onBranchChange}
               onClose={() => ref.current?.focus()}
@@ -1811,6 +1815,7 @@ export function Composer({
           <BranchPicker
             cwd={executionCwd}
             branch={branch}
+            readOnly={!branchSwitching}
             enabled={enabled && !busy}
             onChange={onBranchChange}
             onClose={() => ref.current?.focus()}

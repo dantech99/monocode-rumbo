@@ -118,6 +118,8 @@ export type SessionPaneProps = {
   onClose: (sessionId: string) => void;
   onCwdChange: (sessionId: string, cwd: string) => void;
   onBranchChange: (sessionId: string) => void;
+  /** Lets the composer switch branches; elsewhere the Changes panel does. */
+  branchSwitching?: boolean;
   onWorktreeChange?: (sessionId: string, tree: Worktree) => Promise<void>;
   onRemoteSnapshot?: (shellId: string, snapshot?: HostSession) => void;
   onWorkspaceModeChange: (
@@ -279,6 +281,7 @@ const LocalSessionPane = memo(function LocalSessionPane({
   onClose,
   onCwdChange,
   onBranchChange,
+  branchSwitching = false,
   onWorktreeChange,
   onWorkspaceModeChange,
   onWorktreeBaseChange,
@@ -635,6 +638,7 @@ const LocalSessionPane = memo(function LocalSessionPane({
       onFocus={() => onFocus(session.id)}
       onCwdChange={(cwd) => onCwdChange(session.id, cwd)}
       onBranchChange={() => onBranchChange(session.id)}
+      branchSwitching={branchSwitching}
       onWorktreeChange={
         onWorktreeChange
           ? (tree) => onWorktreeChange(session.id, tree)

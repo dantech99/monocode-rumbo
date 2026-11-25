@@ -44,6 +44,8 @@ type Props = {
   onClose?: () => void;
   onOpenChange?: (open: boolean) => void;
   popoverSide?: "top" | "bottom";
+  /** Shows the branch without letting it be switched from here. */
+  readOnly?: boolean;
 };
 
 const MENU_WIDTH = 340;
@@ -70,6 +72,7 @@ export function BranchPicker({
   onClose,
   onOpenChange,
   popoverSide = "top",
+  readOnly = false,
 }: Props) {
   const [open, setOpen] = useState(initialOpen);
   const [query, setQuery] = useState("");
@@ -319,7 +322,7 @@ export function BranchPicker({
     : missingGit
       ? "No git repository"
       : label;
-  const interactive = enabled && !awaitingBranch && !missingGit;
+  const interactive = enabled && !readOnly && !awaitingBranch && !missingGit;
 
   return (
     <div ref={root} className="relative flex min-w-0 shrink">
@@ -332,9 +335,10 @@ export function BranchPicker({
               ? "No git repository"
               : `Branch ${label}`
         }
-        aria-expanded={missingGit ? undefined : open}
-        aria-haspopup={missingGit ? undefined : "dialog"}
+        aria-expanded={missingGit || readOnly ? undefined : open}
+        aria-haspopup={missingGit || readOnly ? undefined : "dialog"}
         disabled={!interactive}
+        dimWhenDisabled={!readOnly}
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => {
           if (!interactive || blocked) return;

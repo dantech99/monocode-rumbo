@@ -331,3 +331,23 @@ it("describes a branch tip, skipping what git did not give", () => {
   ).toBe("Ana · 4 hours ago · fix");
   expect(branchDetail({ name: "a", current: false, remote: null })).toBe("");
 });
+
+it("shows the branch read-only without opening the picker", async () => {
+  act(() =>
+    root.render(
+      createElement(BranchPicker, {
+        cwd: "/repo",
+        branch: "main",
+        readOnly: true,
+      }),
+    ),
+  );
+  await act(async () => {});
+  const trigger = container.querySelector("button")!;
+  expect(trigger.textContent).toContain("main");
+  expect(trigger.disabled).toBe(true);
+  expect(trigger.getAttribute("aria-haspopup")).toBeNull();
+  expect(trigger.className).not.toContain("disabled:opacity-40");
+  await act(async () => trigger.click());
+  expect(document.querySelector("[data-branch-picker]")).toBeNull();
+});

@@ -1219,6 +1219,8 @@ function ConnectedRemoteSession({
     onBranchChange: () => {
       notifyGitChanged();
     },
+    // Host sessions have no Changes panel, so the composer keeps switching.
+    branchSwitching: true,
     onWorktreeChange: (_, tree) => selectWorktree(tree),
     onWorkspaceModeChange: (_, mode, base) => {
       setDraftWorkspaceMode(mode);
