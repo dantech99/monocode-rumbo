@@ -442,11 +442,11 @@ mod platform {
     ) -> Result<(), String> {
         let mut notification = notify_rust::Notification::new();
         notification
-            .appname("MonoCode")
+            .appname("Rumbo")
             .summary(&format!("{title}: {subtitle}"))
             // The body is agent output; servers render it as markup.
             .body(&escape_markup(body))
-            .icon("monocode")
+            .icon("rumbo")
             // Servers only report the click when a "default" action exists.
             .action("default", "Show");
         if sound {

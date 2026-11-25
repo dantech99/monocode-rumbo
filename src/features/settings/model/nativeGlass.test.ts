@@ -33,6 +33,8 @@ beforeEach(() => {
   platform.isLinux = false;
   platform.isMac = false;
   localStorage.clear();
+  // These cover the classic shell; tests of the focused one opt in.
+  localStorage.setItem("monocode.insetLayout", "0");
   document.documentElement.className = "";
   document.documentElement.style.cssText = "";
   // The real token, so the tests below exercise the deferred window call rather
