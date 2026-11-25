@@ -84,6 +84,9 @@ import { HarnessUpdateNotice } from "../features/providers/ui/HarnessUpdateNotic
 import { NewLayoutNotice } from "./shell/NewLayoutNotice";
 import { WhatsNewDialog } from "./shell/WhatsNewDialog";
 import type { NewTabAction } from "./model/newTabMenu";
+import { QuickCommandsButton } from "../features/projects/ui/QuickCommandsButton";
+import type { QuickCommand } from "../features/projects/model/quickCommands";
+import { queueStartupCommand } from "../features/terminal/model/startupCommands";
 import { CreateWorktreeDialog } from "../features/source-control/ui/CreateWorktreeDialog";
 import { OpenWorktreeDialog } from "../features/source-control/ui/OpenWorktreeDialog";
 import { ProviderSignInDialog } from "../features/sessions/ui/ProviderSignInDialog";
@@ -2598,6 +2601,8 @@ function Workspace({
         harness,
       );
       const tab = newTab(session.id);
+      // Synchronously too, so a prompt can be submitted to it right away.
+      sessionsRef.current = [...sessionsRef.current, session];
       setSessions((prev) => [...prev, session]);
       appendTab(tab, cwd);
       setActiveTabId(tab.id);
@@ -11587,6 +11592,20 @@ function Workspace({
     else if (action.kind === "space") void pickProject();
     else setWorktreeDialog(action.kind === "new-worktree" ? "new" : "open");
   };
+  const onRunQuickCommand = (command: QuickCommand) => {
+    if (command.action === "agent") {
+      const sessionId = startSession();
+      onSubmit(sessionId, command.command, []);
+      return;
+    }
+    if (!isLocalProject(sidebarCwd)) return;
+    const file = newTerminalFile(terminalCwd, command.label, sidebarCwd);
+    queueStartupCommand(file.id, command.command);
+    const tab = newTerminalWorkspaceTab(file);
+    appendTab(tab, sidebarCwd);
+    setActiveTabId(tab.id);
+    setComposerFocused(false);
+  };
   const onWorktreePicked = (tree: Worktree) => {
     setWorktreeDialog(undefined);
     onSelectWorkspace({ path: tree.path, branch: tree.branch });
@@ -11633,6 +11652,11 @@ function Workspace({
           : undefined
       }
       newTabWorktrees={isLocalProject(sidebarCwd)}
+      projectActions={
+        insetLayout && !settingsOpen && isLocalProject(sidebarCwd) ? (
+          <QuickCommandsButton cwd={sidebarCwd} onRun={onRunQuickCommand} />
+        ) : undefined
+      }
       onOpenSettings={onOpenSettings}
       onOpenInbox={onOpenInbox}
       onOpenNotes={notesEnabled ? onOpenNotes : undefined}

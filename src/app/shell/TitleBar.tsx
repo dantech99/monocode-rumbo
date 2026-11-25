@@ -140,6 +140,8 @@ type Props = {
   onNewTabAction?: (action: NewTabAction) => void;
   /** Worktree entries of the "+" menu need a git project. */
   newTabWorktrees?: boolean;
+  /** The project's quick commands, before the right sidebar toggle. */
+  projectActions?: ReactNode;
   onOpenSettings?: () => void;
   onOpenInbox?: () => void;
   onOpenNotes?: () => void;
@@ -697,6 +699,7 @@ function TitleBarComponent({
   onNewTerminal,
   onNewTabAction,
   newTabWorktrees = false,
+  projectActions,
   onOpenSettings,
   onOpenInbox,
   onOpenNotes,
@@ -980,10 +983,14 @@ function TitleBarComponent({
   const rightPanelOff = rightPanelUnavailable;
   const changesDot = rightPanelDot && !rightPanelOff;
   const trailingControls =
+    projectActions ||
     showTrailingActions ||
     showRightPanelToggle ||
     (!IS_MAC && !hideWindowControls) ? (
       <div className="flex h-full shrink-0 items-stretch">
+        {projectActions ? (
+          <div className="flex items-center pl-2">{projectActions}</div>
+        ) : null}
         {showRightPanelToggle ? (
           // Clear of the window's right edge, like the traffic lights' inset
           // on the left.

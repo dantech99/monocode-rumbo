@@ -1,3 +1,4 @@
+import { takeStartupCommand } from "../model/startupCommands";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal } from "@xterm/xterm";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -275,7 +276,11 @@ export function TerminalView({ id, cwd, active, onMetaChange }: Props) {
     const starting = (stoppingPtys.get(id) ?? Promise.resolve())
       .then(start)
       .then(() => {
-        if (!closed) spawned.current = true;
+        if (closed) return;
+        spawned.current = true;
+        // The shell buffers input until it is ready, so type it right away.
+        const command = takeStartupCommand(id);
+        if (command) void writePty(id, `${command}\r`).catch(() => undefined);
       })
       .catch((error) => {
         spawned.current = false;
