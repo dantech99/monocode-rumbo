@@ -314,22 +314,13 @@ export function saveThemeDarkLightness(value: number) {
   );
 }
 
-/**
- * The inset layout has a fixed, neutral tint and hides the tint controls, so
- * the saved ones wait for the classic layout rather than tinting its menus
- * and dialogs.
- */
-function insetLayoutApplied(): boolean {
-  return document.documentElement.classList.contains("layout-inset");
-}
-
 export function applyThemeDarkLightness(value: number) {
   const next = Math.round(
     clamp(value, THEME_DARK_LIGHTNESS_MIN, THEME_DARK_LIGHTNESS_MAX),
   );
   document.documentElement.style.setProperty(
     "--theme-dark-lightness",
-    `${insetLayoutApplied() ? THEME_DARK_LIGHTNESS_DEFAULT : next}%`,
+    `${insetLayoutActive() ? THEME_DARK_LIGHTNESS_DEFAULT : next}%`,
   );
   refreshNativeTint();
   return next;
@@ -340,7 +331,7 @@ export function applyThemeTint(hue: number, saturation: number) {
   const nextSaturation = Math.round(
     clamp(saturation, THEME_SATURATION_MIN, THEME_SATURATION_MAX),
   );
-  const inset = insetLayoutApplied();
+  const inset = insetLayoutActive();
   document.documentElement.style.setProperty(
     "--theme-hue",
     String(inset ? THEME_HUE_DEFAULT : nextHue),
