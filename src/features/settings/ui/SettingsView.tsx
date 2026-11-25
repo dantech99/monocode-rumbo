@@ -1162,7 +1162,7 @@ function ChatPage() {
         <Row
           id="composer-autocorrect"
           label="Autocorrect"
-          description="Spell check and autocorrect prompts in session and mono composers. Turn this off to keep the text exactly as typed."
+          description="Spell check and autocorrect prompts in session composers. Turn this off to keep the text exactly as typed."
         >
           <Toggle
             label="Autocorrect"

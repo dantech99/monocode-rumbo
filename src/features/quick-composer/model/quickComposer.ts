@@ -52,7 +52,7 @@ export type QuickCatalog = {
 export type QuickChoice = { harness: HarnessId; model: string };
 
 export type QuickLaunch = {
-  /** Mono's visibility preference, captured before creating the session. */
+  /** Keeps the session out of the sidebar, captured before creating it. */
   sidebarHidden?: boolean;
   prompt: string;
   /** Create an unsent user draft instead of starting an agent turn. */

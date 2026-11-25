@@ -105,7 +105,6 @@ export function useInboxActivity(
   cwd: string,
   sessions: readonly SessionSummary[],
   options?: {
-    onAppeared?: (items: InboxItem[]) => void;
     /** Only this project's items (and project-less ones) light the badge.
      * Polling, chimes and linked sessions still cover every project. */
     scopeProject?: string;
@@ -120,7 +119,6 @@ export function useInboxActivity(
   const entriesRef = useRef<ProjectSeenEntry[]>([]);
   const notifications = useRef(new InboxNotificationTracker());
   const sessionsRef = useRef(sessions);
-  const onAppearedRef = useRef(options?.onAppeared);
   const scopeProject = options?.scopeProject;
   const scopeRef = useRef(scopeProject);
   scopeRef.current = scopeProject;
@@ -147,10 +145,6 @@ export function useInboxActivity(
   useEffect(() => {
     applyUnseen();
   }, [applyUnseen, scopeProject]);
-
-  useLayoutEffect(() => {
-    onAppearedRef.current = options?.onAppeared;
-  }, [options?.onAppeared]);
 
   useEffect(() => {
     const stopSeen = subscribeInboxSeen(applyUnseen);
@@ -212,9 +206,6 @@ export function useInboxActivity(
           Object.keys(listed.errors) as InboxProvider[],
         );
         const changed = observed.changed;
-        // Invoke on every successful poll so retained automation claims can be
-        // retried even when the item is no longer newly appeared.
-        onAppearedRef.current?.(observed.appeared);
         const selfAuthored = changed.filter((item) =>
           consumeInboxSelfActivity(item),
         );

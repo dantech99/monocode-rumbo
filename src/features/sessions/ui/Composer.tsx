@@ -1855,7 +1855,6 @@ export function Composer({
                 harness={harness}
                 accountId={providerAccountId}
                 onSelect={onUsageLimitAccountChange}
-                variant="composer"
               />
             ) : undefined
           }

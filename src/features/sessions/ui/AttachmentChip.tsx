@@ -8,11 +8,9 @@ import { ImageLightbox } from "../../../shared/ui/ImageLightbox";
 type Props = {
   attachment: Attachment;
   onRemove?: () => void;
-  /** A sent image shown large on its own, like a photo in a messaging app. */
-  photo?: boolean;
 };
 
-export function AttachmentChip({ attachment, onRemove, photo = false }: Props) {
+export function AttachmentChip({ attachment, onRemove }: Props) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const preview = attachmentPreviewSrc(attachment);
   const image = attachment.kind === "image" && preview;
@@ -34,17 +32,13 @@ export function AttachmentChip({ attachment, onRemove, photo = false }: Props) {
               event.stopPropagation();
               setPreviewOpen(true);
             }}
-            className={`${photo ? "min-w-0 rounded-2xl" : "shrink-0 rounded-lg"} cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
+            className="shrink-0 cursor-zoom-in rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <img
               src={preview}
               alt=""
               draggable={false}
-              className={
-                photo
-                  ? "block max-h-60 max-w-60 rounded-2xl object-cover"
-                  : "size-9 rounded-lg object-cover"
-              }
+              className="size-9 rounded-lg object-cover"
             />
           </button>
         ) : (

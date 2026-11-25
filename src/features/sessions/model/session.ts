@@ -54,15 +54,6 @@ export type BlockRole =
   | "system"
   | "handoff";
 
-/** A session created by a Mono during this conversation turn. */
-export type MonoSpawnedSession = {
-  sessionId: string;
-  cwd: string;
-  title: string;
-  harness: HarnessId;
-  model: string;
-};
-
 export type TaskListItemStatus =
   "pending" | "in_progress" | "completed" | "cancelled";
 
@@ -263,25 +254,13 @@ export type Attachment = {
   previewUrl?: string;
 };
 
-export type MonoSessionCompletion = {
-  sessionId: string;
-  title: string;
-  status: "completed" | "failed" | "cancelled";
-  /** A single report covering several sessions launched in one Mono turn. */
-  sessionCount?: number;
-};
-
 export type QueuedMessage = {
   id: string;
-  /** User bubble already shown optimistically in a Mono's conversation. */
-  blockId?: string;
   text: string;
   attachments: Attachment[];
   noteCard?: NoteComposerCard;
   handoffCard?: HandoffComposerCard;
   intent?: TurnIntent;
-  /** An app notification that must wait for an idle Mono, never steer its work. */
-  monoSessionCompletion?: MonoSessionCompletion;
   /** Delivery failed; the message remains available to retry or edit. */
   error?: string;
 };
@@ -371,10 +350,6 @@ export type Block = {
    * conversation rather than the user narrating their own agents.
    */
   internal?: boolean;
-  /** Hidden app prompt that starts a separate completion report in a Mono chat. */
-  monoSessionCompletion?: MonoSessionCompletion;
-  /** Accepted session launches, kept on the originating user turn. */
-  monoSpawnedSessions?: MonoSpawnedSession[];
   handoff?: HandoffMeta;
   secondOpinion?: SecondOpinionMeta;
   /** Independent read-only side conversations anchored to this user turn. */
@@ -392,12 +367,6 @@ export type Block = {
    */
   notice?: "error" | "interrupt";
   statusKey?: string;
-  /** Posted to a Mono's chat by one of its habits, outside any turn. */
-  monoHabit?: { id: string; name: string; at: number };
-  /** Left over from the removed Mono feature; stored but never read. */
-  monoCard?: unknown;
-  /** Left over from the removed Mono feature; stored but never read. */
-  monoReaction?: string;
 };
 
 export type RuntimeMode =
@@ -455,8 +424,6 @@ export type Session = {
   /** Project / working directory for this session. */
   cwd: string;
   blocks: Block[];
-  /** Mono-only database window. Older blocks are fetched separately by the viewer. */
-  monoTranscript?: { before: number | null; firstBlockId: string | null };
   /** True while a harness turn is in flight. */
   busy?: boolean;
   /** The provider has accepted this turn and can take live follow-ups. */
@@ -478,7 +445,6 @@ export type Session = {
   usageLimit?: UsageLimit;
   /**
    * Lives only in memory: never saved, never listed with the project's chats.
-   * A Mono's habit runs are, and disappear when the run ends.
    */
   ephemeral?: boolean;
   /** Provider-side conversation id (Cursor ACP session id). */
