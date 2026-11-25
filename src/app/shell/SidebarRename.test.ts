@@ -425,6 +425,112 @@ describe("spaces column", () => {
   });
 });
 
+describe("inset spaces and agents", () => {
+  const twoProjects = () => {
+    props = {
+      ...props,
+      inset: true,
+      cwd: "/repo/a",
+      recents: [
+        { path: "/repo/a", openedAt: 2 },
+        { path: "/repo/b", openedAt: 1 },
+        { path: "/repo/empty", openedAt: 0 },
+      ],
+      sessions: [
+        {
+          ...props.sessions[0],
+          id: "from-a",
+          cwd: "/repo/a",
+          title: "from-a",
+        },
+        {
+          ...props.sessions[0],
+          id: "from-b",
+          cwd: "/repo/b",
+          title: "from-b",
+        },
+        {
+          ...props.sessions[0],
+          id: "pinned-b",
+          cwd: "/repo/b",
+          title: "pinned-b",
+          pinned: true,
+        },
+      ],
+      projectRailOpen: false,
+      onSelectProject: vi.fn(),
+      onOpenProject: vi.fn(),
+    };
+  };
+
+  it("lists every project flat under Spaces and the sessions under Agents, pinned first", async () => {
+    twoProjects();
+    await act(async () => render());
+    const spaces = container.querySelector('nav[aria-label="Spaces"]')!;
+    expect(
+      [...spaces.querySelectorAll("[data-project]")].map((node) =>
+        node.getAttribute("data-project"),
+      ),
+    ).toEqual(["/repo/a", "/repo/b", "/repo/empty"]);
+    expect(spaces.querySelector("[data-session-card]")).toBeNull();
+    const agents = container.querySelector('section[aria-label="Agents"]')!;
+    expect(
+      [...agents.querySelectorAll("[data-agents-pinned], [data-agent-project]")].map(
+        (node) =>
+          node.hasAttribute("data-agents-pinned")
+            ? "pinned"
+            : node.getAttribute("data-agent-project"),
+      ),
+    ).toEqual(["pinned", "/repo/a", "/repo/b"]);
+    expect(
+      agents.querySelector('[data-agents-pinned] [data-session-card="pinned-b"]'),
+    ).not.toBeNull();
+    expect(
+      agents.querySelector('[data-agent-project="/repo/b"] [data-session-card="pinned-b"]'),
+    ).toBeNull();
+    expect(
+      agents.querySelector('[data-agent-project="/repo/empty"]'),
+    ).toBeNull();
+  });
+
+  it("has no project dropdown in the header and no strip at the foot", async () => {
+    twoProjects();
+    await act(async () => render());
+    expect(container.querySelector("[data-project-menu]")).toBeNull();
+    expect(container.querySelector('button[aria-label^="Switch project"]')).toBeNull();
+    expect(container.querySelector('[role="tablist"][aria-label="Projects"]')).toBeNull();
+    expect(container.querySelector('button[aria-label="More projects"]')).toBeNull();
+    expect(container.querySelector('button[aria-label="Previous projects"]')).toBeNull();
+  });
+
+  it("opens the project menu for the right-clicked Space, without Switch project or Settings", async () => {
+    twoProjects();
+    props.onOpenNotificationSettings = vi.fn();
+    await act(async () => render());
+    const row = container.querySelector<HTMLButtonElement>(
+      '[data-project="/repo/b"] button',
+    )!;
+    act(() => {
+      row.dispatchEvent(
+        new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
+      );
+    });
+    const items = [
+      ...document.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+    ].map((item) => item.textContent ?? "");
+    expect(items.length).toBeGreaterThan(0);
+    expect(items.some((text) => text.startsWith("Switch project"))).toBe(false);
+    expect(items.some((text) => text === "Settings")).toBe(false);
+    expect(items.some((text) => text.startsWith("Reveal") || text.startsWith("Open Containing"))).toBe(true);
+    // The menu belongs to the clicked project ("b"), not the open one ("a").
+    expect(
+      document.querySelector<HTMLInputElement>('input[aria-label="Group name"]')!
+        .value,
+    ).toBe("b");
+    expect(props.onSelectProject).not.toHaveBeenCalled();
+  });
+});
+
 describe("classic spaces strip", () => {
   it("keeps the spaces strip mounted while search covers the classic layout", async () => {
     props = {
