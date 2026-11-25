@@ -81,7 +81,6 @@ import { noteProjectStep, Sidebar } from "./shell/Sidebar";
 import { ApprovalToasts } from "../features/sessions/ui/ApprovalToasts";
 import { ResourcePressureNotice } from "../features/notifications/ui/ResourcePressureNotice";
 import { HarnessUpdateNotice } from "../features/providers/ui/HarnessUpdateNotice";
-import { NewLayoutNotice } from "./shell/NewLayoutNotice";
 import { WhatsNewDialog } from "./shell/WhatsNewDialog";
 import type { NewTabAction } from "./model/newTabMenu";
 import { QuickCommandsButton } from "../features/projects/ui/QuickCommandsButton";
@@ -140,8 +139,6 @@ import { useProjectBranches } from "../features/source-control/hooks/useProjectB
 import { useInboxActivity } from "../features/inbox/hooks/useInboxUnseen";
 import {
   applyInsetLayout,
-  INSET_LAYOUT_DEFAULT,
-  loadInsetLayout,
   loadProjectRailOpen,
   loadRightPanelOpen,
   loadRightPanelTab,
@@ -150,12 +147,11 @@ import {
   RIGHT_PANEL_WIDTH_DEFAULT,
   RIGHT_PANEL_WIDTH_MAX,
   RIGHT_PANEL_WIDTH_MIN,
+  saveProjectRailOpen,
   saveRightPanelOpen,
   saveRightPanelTab,
   saveRightPanelWidth,
-  subscribeInsetLayout,
   type RightPanelTab,
-  saveProjectRailOpen,
   saveSessionSidebarOpen,
   type SidebarTabId,
 } from "../features/settings/model/appearance";
@@ -163,7 +159,7 @@ import {
   loadProjectSidebarTab,
   saveProjectSidebarTab,
 } from "../features/settings/model/projectSidebarTab";
-import { HAS_NATIVE_GLASS, IS_MAC } from "../platform/tauri/platform";
+import { IS_MAC } from "../platform/tauri/platform";
 import {
   applyUiScale,
   loadUiScale,
@@ -1135,19 +1131,12 @@ function Workspace({
   );
   const [collapsedProjectRailMode, setCollapsedProjectRailMode] =
     useState<CollapsedProjectRailMode>(loadCollapsedProjectRailMode);
-  const insetLayout = useSyncExternalStore(
-    subscribeInsetLayout,
-    loadInsetLayout,
-    () => INSET_LAYOUT_DEFAULT,
-  );
   const [insetRailHost, setInsetRailHost] = useState<HTMLDivElement | null>(
     null,
   );
   // Where Settings puts its breadcrumb and actions in the inset title bar.
   const [settingsHeaderHost, setSettingsHeaderHost] =
     useState<HTMLDivElement | null>(null);
-  const insetLayoutRef = useRef(insetLayout);
-  insetLayoutRef.current = insetLayout;
   // The inset layout's project tools beside the card.
   const [rightPanelHost, setRightPanelHost] = useState<HTMLDivElement | null>(
     null,
@@ -1196,8 +1185,8 @@ function Workspace({
   const endRightPanelTransition = useRef<(() => void) | null>(null);
   const rightPanelWasOpen = useRef(rightPanelOpen);
   useLayoutEffect(() => {
-    applyInsetLayout(insetLayout);
-  }, [insetLayout]);
+    applyInsetLayout(true);
+  }, []);
   // The title bar's navigation spans the open rail, so its tabs line up with
   // the card. Written straight to the shell to follow a rail drag per frame.
   useLayoutEffect(() => {
@@ -1223,14 +1212,13 @@ function Workspace({
   const [updateNotice, setUpdateNotice] = useState(installedUpdate);
   const [whatsNewVersion, setWhatsNewVersion] = useState<string | null>(null);
   useLayoutEffect(() => {
-    if (!insetLayout) return;
     setTitleTabOrder((order) =>
       reconcileTitleTabOrder(order, [
         ...tabs.map((tab) => tab.id),
         ...openAppViews.map(appViewTabId),
       ]),
     );
-  }, [insetLayout, tabs, openAppViews]);
+  }, [tabs, openAppViews]);
   const [providerSignInRequest, setProviderSignInRequest] = useState<{
     key: string;
     sessionId: string;
@@ -1762,9 +1750,8 @@ function Workspace({
   const sidebarCwdRef = useRef(sidebarCwd);
   sidebarCwdRef.current = sidebarCwd;
   // Each inset space is one project, so its Inbox, Notes (and
-  // the Inbox dot) show that project's items; the classic layout shows all.
-  const appViewScope =
-    insetLayout && looksLikeProject(sidebarCwd) ? sidebarCwd : undefined;
+  // the Inbox dot) show that project's items.
+  const appViewScope = looksLikeProject(sidebarCwd) ? sidebarCwd : undefined;
   const [sidebarTabSelection, setSidebarTabSelection] = useState<{
     project: string;
     tab: SidebarTabId;
@@ -1780,7 +1767,7 @@ function Workspace({
     (tab: SidebarTabId, project?: string) => {
       // Inset: Explorer and Changes open in the right panel; the sidebar stays
       // on the sessions.
-      if (insetLayoutRef.current && (tab === "files" || tab === "changes")) {
+      if (tab === "files" || tab === "changes") {
         showRightPanel(tab);
         return;
       }
@@ -2026,7 +2013,6 @@ function Workspace({
     [promptableSessions, activeTabId, tabs, composerFocused],
   );
   const [harnessUpdateHeight, setHarnessUpdateHeight] = useState(0);
-  const [newLayoutNoticeHeight, setNewLayoutNoticeHeight] = useState(0);
   // The footer's slot for the resource pressure chip. Monitoring continues
   // while the footer is hidden.
   const [pressureChipHost, setPressureChipHost] =
@@ -3151,11 +3137,7 @@ function Workspace({
         const navigation = displayedTabNavigation.current;
         // A view shown over this tab stays up; only the workspace beneath it
         // moves on.
-        if (
-          insetLayoutRef.current &&
-          navigation.activeId !== id &&
-          isViewTab(navigation.activeId)
-        ) {
+        if (navigation.activeId !== id && isViewTab(navigation.activeId)) {
           setTabs(next);
           if (nextActiveTabId) setActiveTabIdState(nextActiveTabId);
           void refreshHistory(sidebarCwd);
@@ -3907,23 +3889,6 @@ function Workspace({
     workspaceNavigation.revision,
   ]);
 
-  const onNext = useCallback(() => {
-    const index = deckProjectTabs.findIndex((t) => t.id === activeTabId);
-    if (index >= 0)
-      activateTab(deckProjectTabs[(index + 1) % deckProjectTabs.length].id);
-  }, [activateTab, activeTabId, deckProjectTabs]);
-
-  const onPrev = useCallback(() => {
-    const index = deckProjectTabs.findIndex((t) => t.id === activeTabId);
-    if (index >= 0) {
-      activateTab(
-        deckProjectTabs[
-          (index - 1 + deckProjectTabs.length) % deckProjectTabs.length
-        ].id,
-      );
-    }
-  }, [activateTab, activeTabId, deckProjectTabs]);
-
   const onVisitBack = useCallback(() => {
     const openIds = new Set(tabsRef.current.map((tab) => tab.id));
     const pruned = pruneTabVisitHistory(
@@ -3951,17 +3916,6 @@ function Workspace({
     commitTabVisit(next);
     activateTab(next.current);
   }, [activateTab, commitTabVisit]);
-
-  const onActivate = useCallback(
-    (slot: number) => {
-      const tab =
-        slot < 0
-          ? deckProjectTabs[deckProjectTabs.length - 1]
-          : deckProjectTabs[slot];
-      if (tab) activateTab(tab.id);
-    },
-    [activateTab, deckProjectTabs],
-  );
 
   const onFocusPane = useCallback(
     (paneId: string) => {
@@ -9992,23 +9946,21 @@ function Workspace({
       ...deckProjectTabs.map((tab) =>
         toTitleTab(tab, sessions, dirtyFiles, unseenFinishedIds),
       ),
-      ...(insetLayout
-        ? openAppViews
-            .filter((view) => view !== "notes" || notesEnabled)
-            .map((view): TitleTab => ({
-              id: appViewTabId(view),
-              appView: view,
-              project: "",
-              title: APP_VIEW_LABELS[view],
-              more: [],
-              sessionCount: 0,
-              harnesses: [],
-              busyHarnesses: [],
-              files: [],
-            }))
-        : []),
+      ...openAppViews
+        .filter((view) => view !== "notes" || notesEnabled)
+        .map((view): TitleTab => ({
+          id: appViewTabId(view),
+          appView: view,
+          project: "",
+          title: APP_VIEW_LABELS[view],
+          more: [],
+          sessionCount: 0,
+          harnesses: [],
+          busyHarnesses: [],
+          files: [],
+        })),
     ],
-    insetLayout ? titleTabOrder : [],
+    titleTabOrder,
   );
   // Like a browser, an app tab can be the only tab. The project's lone
   // blank session tab stays underneath, out of the strip, until closing the
@@ -10019,7 +9971,6 @@ function Workspace({
       ? appViewTabId(activeAppView)
       : undefined;
   const placeholderTab =
-    insetLayout &&
     shownViewTabId &&
     orderedTitleTabs.some((tab) => tab.id === shownViewTabId) &&
     deckProjectTabs.length === 1 &&
@@ -10190,27 +10141,15 @@ function Workspace({
   // The inset layout has no project rail, so its sidebar takes the primary
   // toggle.
   const onToggleSidebar = useCallback(() => {
-    if (insetLayout) {
-      onToggleSessionSidebar();
-      return;
-    }
-    setProjectRailOpen((open) => {
-      const next = !open;
-      saveProjectRailOpen(next);
-      return next;
-    });
-  }, [insetLayout, onToggleSessionSidebar]);
+    onToggleSessionSidebar();
+  }, [onToggleSessionSidebar]);
 
   // The inset layout's sidebar already answers the primary toggle, so the
   // session sidebar's shortcut takes the right panel instead.
   const rightPanelToggleRef = useRef<(() => void) | null>(null);
   const onToggleSessionSidebarShortcut = useCallback(() => {
-    if (insetLayout) {
-      rightPanelToggleRef.current?.();
-      return;
-    }
-    onToggleSessionSidebar();
-  }, [insetLayout, onToggleSessionSidebar]);
+    rightPanelToggleRef.current?.();
+  }, []);
 
   const onToggleProjectRail = useCallback(() => {
     setProjectRailOpen((open) => {
@@ -10667,7 +10606,7 @@ function Workspace({
   );
 
   displayedTabNavigation.current = {
-    tabs: insetLayout ? titleTabs : [],
+    tabs: titleTabs,
     activeId: settingsOpen
       ? ""
       : activeAppView
@@ -10770,20 +10709,11 @@ function Workspace({
     [onReorderTabs],
   );
   const onCloseVisibleTab = useCallback(() => {
-    if (insetLayout && activeAppView) onCloseAppView(activeAppView);
+    if (activeAppView) onCloseAppView(activeAppView);
     else onCloseFocused();
-  }, [
-    insetLayout,
-    activeAppView,
-    onCloseAppView,
-    onCloseFocused,
-  ]);
+  }, [activeAppView, onCloseAppView, onCloseFocused]);
   const onCycleVisibleTab = useCallback(
     (delta: number) => {
-      if (!insetLayout) {
-        (delta > 0 ? onNext : onPrev)();
-        return;
-      }
       const current = activeAppView
         ? appViewTabId(activeAppView)
         : activeTabId;
@@ -10792,51 +10722,31 @@ function Workspace({
         titleTabs[(index + delta + titleTabs.length) % titleTabs.length];
       if (next) onSelectTitleTab(next.id);
     },
-    [
-      insetLayout,
-      activeAppView,
-      activeTabId,
-      titleTabs,
-      onSelectTitleTab,
-      onNext,
-      onPrev,
-    ],
+    [activeAppView, activeTabId, titleTabs, onSelectTitleTab],
   );
   const onActivateVisibleTab = useCallback(
     (slot: number) => {
-      if (!insetLayout) {
-        onActivate(slot);
-        return;
-      }
       const tab = slot < 0 ? titleTabs[titleTabs.length - 1] : titleTabs[slot];
       if (tab) onSelectTitleTab(tab.id);
     },
-    [insetLayout, titleTabs, onSelectTitleTab, onActivate],
+    [titleTabs, onSelectTitleTab],
   );
 
   // The inset layout's shortcuts close every kind of title tab, like its
   // tab menu.
   const onCloseOtherVisibleTabs = useCallback(() => {
-    if (!insetLayout) {
-      onCloseOtherTabs();
-      return;
-    }
     const { tabs: shown, activeId } = displayedTabNavigation.current;
     if (!shown.some((tab) => tab.id === activeId)) return;
     onCloseDisplayedTabs(
       shown.filter((tab) => tab.id !== activeId).map((tab) => tab.id),
       activeId,
     );
-  }, [insetLayout, onCloseOtherTabs, onCloseDisplayedTabs]);
+  }, [onCloseDisplayedTabs]);
   const onCloseAllVisibleTabs = useCallback(() => {
-    if (!insetLayout) {
-      onCloseAllTabs();
-      return;
-    }
     onCloseAllDisplayedTabs(
       displayedTabNavigation.current.tabs.map((tab) => tab.id),
     );
-  }, [insetLayout, onCloseAllTabs, onCloseAllDisplayedTabs]);
+  }, [onCloseAllDisplayedTabs]);
 
   const actions = useRef({
     onNewFocused,
@@ -11028,7 +10938,7 @@ function Workspace({
           inPicker &&
           typeof cmd === "object" &&
           "activate" in cmd &&
-          !(insetLayoutRef.current && target?.closest("[data-app-search]"))
+          !target?.closest("[data-app-search]")
         ) {
           return;
         }
@@ -11286,8 +11196,7 @@ function Workspace({
     const reduceMotion = window.matchMedia?.(
       "(prefers-reduced-motion: reduce)",
     ).matches;
-    const animates =
-      insetLayout && !reduceMotion && typeof el.animate === "function";
+    const animates = !reduceMotion && typeof el.animate === "function";
     // Render the dock once more so it can slide out; the grid keeps its
     // track until then.
     if (
@@ -11364,7 +11273,6 @@ function Workspace({
     currentProjectDock,
     dockVisible,
     dockClosingShown,
-    insetLayout,
     projectCwd,
   ]);
   useEffect(() => () => dockAnimation.current?.stop(), []);
@@ -11479,23 +11387,8 @@ function Workspace({
     settingsOpen ||
     inboxViewOpen ||
     notesViewOpen;
-  const compactProjectRail = collapsedProjectRailMode === "compact";
-  const compactRailActive = compactProjectRail && !projectRailOpen;
-  // Overlay back stays only while the spaces strip is not on screen.
-  const spacesStripVisible =
-    !insetLayout &&
-    sessionSidebarOpen &&
-    looksLikeProject(sidebarCwd);
-  const compactTitleNavigation =
-    IS_MAC && compactRailActive && !chromeSurfaceOpen;
-  const compactTitleBar = compactTitleNavigation;
-  // The inset layout keeps its tabs across the top of the window at all
-  // times, with the rail and the card below them.
-  const titleBarSpansWindow = insetLayout || compactTitleBar;
-  const titleBarInBody = !insetLayout && !compactTitleBar;
   // Matches when the sidebar portals Explorer or Changes into the panel.
   const insetRightPanelShown =
-    insetLayout &&
     (rightPanelOpen || rightPanelClosing) &&
     !settingsOpen &&
     !activeAppView &&
@@ -11568,8 +11461,7 @@ function Workspace({
   }, [rightPanelClosing, rightPanelOpen]);
   // The same shared stats the sidebar's Changes tab reads, so the toggle
   // that opens it can carry its dot.
-  const showRightPanelToggle =
-    insetLayout && !settingsOpen && looksLikeProject(sidebarCwd);
+  const showRightPanelToggle = !settingsOpen && looksLikeProject(sidebarCwd);
   rightPanelToggleRef.current =
     showRightPanelToggle && !activeAppView
       ? onToggleRightPanel
@@ -11614,7 +11506,7 @@ function Workspace({
     <TitleBar
       tabs={titleTabs}
       content={
-        insetLayout && settingsOpen ? (
+        settingsOpen ? (
           <div
             ref={setSettingsHeaderHost}
             data-settings-title
@@ -11622,16 +11514,12 @@ function Workspace({
           />
         ) : undefined
       }
-      activeId={
-        insetLayout && activeAppView
-          ? appViewTabId(activeAppView)
-          : activeTabId
-      }
+      activeId={activeAppView ? appViewTabId(activeAppView) : activeTabId}
       cwd={sidebarCwd}
       projectRailOpen={projectRailOpen}
       sessionSidebarOpen={sessionSidebarOpen}
-      compactRail={!insetLayout && compactTitleNavigation}
-      inset={insetLayout}
+      compactRail={false}
+      inset
       rightPanelOpen={rightPanelOpen}
       onToggleRightPanel={
         showRightPanelToggle ? onToggleRightPanel : undefined
@@ -11647,13 +11535,13 @@ function Workspace({
       onSelect={onSelectTitleTab}
       onNewTerminal={onNewTerminal}
       onNewTabAction={
-        insetLayout && !settingsOpen && looksLikeProject(sidebarCwd)
+        !settingsOpen && looksLikeProject(sidebarCwd)
           ? onNewTabAction
           : undefined
       }
       newTabWorktrees={isLocalProject(sidebarCwd)}
       projectActions={
-        insetLayout && !settingsOpen && isLocalProject(sidebarCwd) ? (
+        !settingsOpen && isLocalProject(sidebarCwd) ? (
           <QuickCommandsButton cwd={sidebarCwd} onRun={onRunQuickCommand} />
         ) : undefined
       }
@@ -11689,10 +11577,10 @@ function Workspace({
       }
       explorerRootLabel={explorerRootLabel}
       open={sessionSidebarOpen}
-      tab={insetLayout ? "sessions" : sidebarTab}
+      tab="sessions"
       onTabChange={setSidebarTab}
       rightPanel={
-        insetLayout && !settingsOpen
+        !settingsOpen
           ? {
               host: rightPanelHost,
               open: rightPanelOpen || rightPanelClosing,
@@ -11770,10 +11658,10 @@ function Workspace({
       notesEnabled={notesEnabled}
       // The inset layout has no project rail: the sidebar header's menu
       // switches projects.
-      projectRailOpen={!insetLayout && projectRailOpen}
-      compactProjectRail={!insetLayout && compactProjectRail}
-      titleBarAbove={insetLayout || compactTitleBar}
-      inset={insetLayout}
+      projectRailOpen={false}
+      compactProjectRail={false}
+      titleBarAbove
+      inset
       onToggleProjectRail={onToggleProjectRail}
       unseenFinishedIds={unseenFinishedIds}
       inboxUnseen={inboxUnseen}
@@ -11791,7 +11679,7 @@ function Workspace({
   );
 
   const usageFooter =
-    chromeSurfaceOpen && !(insetLayout && activeAppView) ? null : (
+    chromeSurfaceOpen && !activeAppView ? null : (
       <UsageFooter
         pressureSlot={setPressureChipHost}
         providers={usageProviders}
@@ -11810,7 +11698,7 @@ function Workspace({
           !!currentProjectDock && currentProjectDock.pane.files.length > 0
         }
         projectTerminalOpen={!!currentProjectDock?.open}
-        inset={insetLayout}
+        inset
       />
     );
 
@@ -11819,47 +11707,19 @@ function Workspace({
     <OrchestrationActions.Provider value={orchestrationActions}>
       <OrchestrationWorkers.Provider value={orchestrationWorkers}>
         <div
-          className={`workspace-background flex h-full flex-col text-content ${
-            insetLayout
-              ? "inset-shell inset-outer"
-              : HAS_NATIVE_GLASS
-                ? "bg-background-base/[var(--window-background-opacity)]"
-                : "bg-background-base"
-          }`}
+          className="workspace-background flex h-full flex-col text-content inset-shell inset-outer"
         >
-          {titleBarSpansWindow ? workspaceTitleBar : null}
+          {workspaceTitleBar}
           <div className="flex min-h-0 min-w-0 flex-1">
-            {insetLayout ? (
-              <div
-                ref={setInsetRailHost}
-                className="inset-rail-host flex h-full shrink-0"
-              >
-                {sessionSidebar}
-              </div>
-            ) : null}
-            {/* `contents` keeps the classic layout's flat row; the inset
-                layout stacks the tabs, the card and the footer. */}
             <div
-              className={
-                insetLayout
-                  ? "flex min-h-0 min-w-0 flex-1 flex-col"
-                  : "contents"
-              }
+              ref={setInsetRailHost}
+              className="inset-rail-host flex h-full shrink-0"
             >
-              <div
-                className={
-                  insetLayout
-                    ? "inset-card mr-1.5 flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-[10px] border border-stroke"
-                    : "contents"
-                }
-              >
-                {insetLayout ? null : sessionSidebar}
-
-                <div
-                  className={`flex min-h-0 min-w-0 flex-1 flex-col${
-                    insetLayout ? "" : " body-glass"
-                  }`}
-                >
+              {sessionSidebar}
+            </div>
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              <div className="inset-card mr-1.5 flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-[10px] border border-stroke">
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                   <div
                     className={
                       searchViewOpen ||
@@ -11926,8 +11786,6 @@ function Workspace({
                     ) : null}
                     <div className="flex min-h-0 min-w-0 flex-1">
                       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                        {titleBarInBody ? workspaceTitleBar : null}
-
                         <main className="relative flex min-h-0 min-w-0 flex-1">
                           <div
                             ref={dockGridRef}
@@ -12078,19 +11936,18 @@ function Workspace({
                       </div>
                     </div>
                   </div>
-                  {searchViewOpen ||
-                  (insetLayout && openAppViews.includes("search")) ? (
+                  {searchViewOpen || openAppViews.includes("search") ? (
                     <AppViewSurface active={searchViewOpen}>
                       <SearchView
-                        tabbed={insetLayout}
+                        tabbed
                         open={searchViewOpen}
                         cwd={gitCwd}
                         recents={recents}
                         history={projectHistory}
                         sessions={sessions.filter((session) => !session.inboxAsk)}
                         focusToken={searchViewFocusToken}
-                        besideRail={insetLayout || spacesStripVisible}
-                        compactRail={!insetLayout && compactRailActive}
+                        besideRail
+                        compactRail={false}
                         onClose={onLeaveSearch}
                         onToggleSidebar={onToggleSidebar}
                         onOpenFile={onOpenFile}
@@ -12128,17 +11985,16 @@ function Workspace({
                         );
                       })}
                   </div>
-                  {inboxViewOpen ||
-                  (insetLayout && openAppViews.includes("inbox")) ? (
+                  {inboxViewOpen || openAppViews.includes("inbox") ? (
                     <AppViewSurface active={inboxViewOpen}>
                       <InboxView
-                        tabbed={insetLayout}
+                        tabbed
                         active={inboxViewOpen}
                         cwd={sidebarCwd}
                         scopeProject={appViewScope}
                         recents={recents}
-                        besideRail={insetLayout || spacesStripVisible}
-                        compactRail={!insetLayout && compactRailActive}
+                        besideRail
+                        compactRail={false}
                         onClose={onLeaveInbox}
                         onToggleSidebar={onToggleSidebar}
                         onStart={onStartInboxItem}
@@ -12154,13 +12010,13 @@ function Workspace({
                     </AppViewSurface>
                   ) : null}
                   {notesViewOpen ||
-                  (insetLayout && notesEnabled && openAppViews.includes("notes")) ? (
+                  (notesEnabled && openAppViews.includes("notes")) ? (
                     <AppViewSurface active={notesViewOpen}>
                       <NotesView
-                        tabbed={insetLayout}
+                        tabbed
                         active={notesViewOpen}
-                        besideRail={insetLayout || spacesStripVisible}
-                        compactRail={!insetLayout && compactRailActive}
+                        besideRail
+                        compactRail={false}
                         cwd={projectCwd}
                         scopeProject={appViewScope}
                         recents={recents}
@@ -12183,7 +12039,7 @@ function Workspace({
                       onCheckWorktreeRemoval={onCheckWorktreeRemoval}
                       onDeleteWorktreeSessions={onDeleteWorktreeSessions}
                       besideRail
-                      headerHost={insetLayout ? settingsHeaderHost : undefined}
+                      headerHost={settingsHeaderHost}
                       onClose={onCloseSettings}
                       onSelectSection={onSelectSettingsSection}
                       onOpenSession={onOpenArchivedSession}
@@ -12200,51 +12056,46 @@ function Workspace({
                       }
                     />
                   ) : null}
-                  {insetLayout ? null : usageFooter}
                 </div>
-                {insetLayout ? (
-                  // Part of the card: the project tools beside the
-                  // workspace, behind a hairline.
+                {/* Part of the card: the project tools beside the
+                    workspace, behind a hairline. */}
+                <div
+                  ref={setRightPanelRef}
+                  inert={rightPanelClosing || undefined}
+                  className={
+                    insetRightPanelShown
+                      ? "relative flex h-full shrink-0 flex-col overflow-hidden border-l border-stroke"
+                      : "hidden"
+                  }
+                >
                   <div
-                    ref={setRightPanelRef}
-                    inert={rightPanelClosing || undefined}
-                    className={
-                      insetRightPanelShown
-                        ? "relative flex h-full shrink-0 flex-col overflow-hidden border-l border-stroke"
-                        : "hidden"
-                    }
-                  >
-                    <div
-                      ref={setRightPanelHost}
-                      aria-label="Project tools"
-                      className="flex min-h-0 flex-1 flex-col"
-                    />
-                    <div
-                      role="separator"
-                      aria-orientation="vertical"
-                      aria-label="Resize right sidebar"
-                      aria-valuenow={rightPanelResize.width}
-                      aria-valuemin={RIGHT_PANEL_WIDTH_MIN}
-                      aria-valuemax={RIGHT_PANEL_WIDTH_MAX}
-                      className={`absolute inset-y-0 -left-px z-10 w-1.5 cursor-col-resize touch-none ${
-                        rightPanelResize.dragging
-                          ? "bg-content/15"
-                          : "hover:bg-content/10"
-                      }`}
-                      onPointerDown={rightPanelResize.onPointerDown}
-                      onDoubleClick={rightPanelResize.onDoubleClick}
-                    />
-                  </div>
-                ) : null}
+                    ref={setRightPanelHost}
+                    aria-label="Project tools"
+                    className="flex min-h-0 flex-1 flex-col"
+                  />
+                  <div
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label="Resize right sidebar"
+                    aria-valuenow={rightPanelResize.width}
+                    aria-valuemin={RIGHT_PANEL_WIDTH_MIN}
+                    aria-valuemax={RIGHT_PANEL_WIDTH_MAX}
+                    className={`absolute inset-y-0 -left-px z-10 w-1.5 cursor-col-resize touch-none ${
+                      rightPanelResize.dragging
+                        ? "bg-content/15"
+                        : "hover:bg-content/10"
+                    }`}
+                    onPointerDown={rightPanelResize.onPointerDown}
+                    onDoubleClick={rightPanelResize.onDoubleClick}
+                  />
+                </div>
               </div>
-              {insetLayout
-                ? (usageFooter ??
-                  // Settings has no footer, so the card runs down to the same
-                  // gutter as its right edge.
-                  <div
-                    className={`${settingsOpen ? "h-1.5" : "h-[30px]"} shrink-0`}
-                  />)
-                : null}
+              {usageFooter ??
+                // Settings has no footer, so the card runs down to the same
+                // gutter as its right edge.
+                <div
+                  className={`${settingsOpen ? "h-1.5" : "h-[30px]"} shrink-0`}
+                />}
             </div>
           </div>
 
@@ -12291,28 +12142,17 @@ function Workspace({
             topOffset={12}
             onHeightChange={setHarnessUpdateHeight}
           />
-          <NewLayoutNotice
-            topOffset={
-              12 +
-              (harnessUpdateHeight ? harnessUpdateHeight + 8 : 0)
-            }
-            onHeightChange={setNewLayoutNoticeHeight}
-          />
           <ResourcePressureNotice
             sessions={sessionsRef}
             onStopAgent={(id) => onStop(id, true)}
             onStopSession={onStop}
             onPressureChange={transcriptPool.setResourcePressure}
             chipHost={pressureChipHost}
-            insetChip={insetLayout}
+            insetChip
           />
           <ApprovalToasts
             notices={hiddenApprovalToasts}
-            topOffset={
-              12 +
-              (harnessUpdateHeight ? harnessUpdateHeight + 8 : 0) +
-              (newLayoutNoticeHeight ? newLayoutNoticeHeight + 8 : 0)
-            }
+            topOffset={12 + (harnessUpdateHeight ? harnessUpdateHeight + 8 : 0)}
             onFocusSession={onOpenApprovalSession}
             onApproval={onApproval}
           />
