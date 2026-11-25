@@ -16,6 +16,8 @@ type MenuAction = {
   id: string;
   label: string;
   description?: string;
+  /** Leading glyph, drawn before the label. */
+  icon?: ReactNode;
   shortcut?: string;
   disabled?: boolean;
   danger?: boolean;
@@ -23,7 +25,9 @@ type MenuAction = {
 };
 
 export type ExplorerMenuItem =
-  { kind: "sep" } | (MenuAction & { submenu?: MenuAction[] });
+  | { kind: "sep" }
+  | { kind: "heading"; label: string }
+  | (MenuAction & { submenu?: MenuAction[] });
 
 type Props = (
   | { x: number; y: number; anchor?: never }
@@ -243,6 +247,11 @@ export function ExplorerMenu({
                 : "text-content hover:bg-content/5"
         }`}
       >
+        {item.icon ? (
+          <span className="grid size-4 shrink-0 place-items-center">
+            {item.icon}
+          </span>
+        ) : null}
         <span className="min-w-0 flex-1">
           <span className="block truncate">{item.label}</span>
           {item.description ? (
@@ -314,6 +323,17 @@ export function ExplorerMenu({
                 role="separator"
                 className="my-1 h-px bg-content/10"
               />
+            );
+          }
+          if (item.kind === "heading") {
+            return (
+              <div
+                key={`heading-${index}`}
+                role="presentation"
+                className="px-2.5 pb-0.5 pt-1.5 text-[11px] text-content/40"
+              >
+                {item.label}
+              </div>
             );
           }
           return renderItem(item, index);

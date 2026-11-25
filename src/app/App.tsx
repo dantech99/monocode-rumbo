@@ -83,6 +83,9 @@ import { ResourcePressureNotice } from "../features/notifications/ui/ResourcePre
 import { HarnessUpdateNotice } from "../features/providers/ui/HarnessUpdateNotice";
 import { NewLayoutNotice } from "./shell/NewLayoutNotice";
 import { WhatsNewDialog } from "./shell/WhatsNewDialog";
+import type { NewTabAction } from "./model/newTabMenu";
+import { CreateWorktreeDialog } from "../features/source-control/ui/CreateWorktreeDialog";
+import { OpenWorktreeDialog } from "../features/source-control/ui/OpenWorktreeDialog";
 import { ProviderSignInDialog } from "../features/sessions/ui/ProviderSignInDialog";
 import {
   TitleBar,
@@ -2583,19 +2586,28 @@ function Workspace({
     [appendTab, sessionDefaults?.runtimeMode],
   );
 
-  const onNew = useCallback(() => {
-    setSearchViewOpen(false);
-    setInboxViewOpen(false);
-    setNotesViewOpen(false);
-    const cwd = sidebarCwd;
-    const session = newWorkspaceSession(cwd, sessionDefaults?.runtimeMode);
-    const tab = newTab(session.id);
-    setSessions((prev) => [...prev, session]);
-    appendTab(tab, cwd);
-    setActiveTabId(tab.id);
-    setComposerFocused(true);
-    return session.id;
-  }, [appendTab, sessionDefaults?.runtimeMode, sidebarCwd]);
+  const startSession = useCallback(
+    (harness?: HarnessId) => {
+      setSearchViewOpen(false);
+      setInboxViewOpen(false);
+      setNotesViewOpen(false);
+      const cwd = sidebarCwd;
+      const session = newWorkspaceSession(
+        cwd,
+        sessionDefaults?.runtimeMode,
+        harness,
+      );
+      const tab = newTab(session.id);
+      setSessions((prev) => [...prev, session]);
+      appendTab(tab, cwd);
+      setActiveTabId(tab.id);
+      setComposerFocused(true);
+      return session.id;
+    },
+    [appendTab, sessionDefaults?.runtimeMode, sidebarCwd],
+  );
+  // Handlers pass click events along, so this never takes a provider.
+  const onNew = useCallback(() => startSession(), [startSession]);
 
   const onSelectRemoteSession = useCallback(
     (project: string, remoteSessionId: string) => {
@@ -11561,8 +11573,16 @@ function Workspace({
     gitCwd || sidebarCwd,
     showRightPanelToggle && isLocalProject(sidebarCwd),
   );
-  const onNewFromTitleBar = () => {
-    onNew();
+  const [worktreeDialog, setWorktreeDialog] = useState<"new" | "open">();
+  const onNewTabAction = (action: NewTabAction) => {
+    if (action.kind === "terminal") onNewTerminal();
+    else if (action.kind === "agent") startSession(action.harness);
+    else if (action.kind === "space") void pickProject();
+    else setWorktreeDialog(action.kind === "new-worktree" ? "new" : "open");
+  };
+  const onWorktreePicked = (tree: Worktree) => {
+    setWorktreeDialog(undefined);
+    onSelectWorkspace({ path: tree.path, branch: tree.branch });
   };
   const workspaceTitleBar = (
     <TitleBar
@@ -11600,11 +11620,12 @@ function Workspace({
       onToggleSessionSidebar={onToggleSessionSidebar}
       onSelect={onSelectTitleTab}
       onNewTerminal={onNewTerminal}
-      onNewSession={
+      onNewTabAction={
         insetLayout && !settingsOpen && looksLikeProject(sidebarCwd)
-          ? onNewFromTitleBar
+          ? onNewTabAction
           : undefined
       }
+      newTabWorktrees={isLocalProject(sidebarCwd)}
       onOpenSettings={onOpenSettings}
       onOpenInbox={onOpenInbox}
       onOpenNotes={notesEnabled ? onOpenNotes : undefined}
@@ -12227,6 +12248,20 @@ function Workspace({
               }}
             />
           )}
+          {worktreeDialog === "new" ? (
+            <CreateWorktreeDialog
+              cwd={sidebarCwd}
+              baseCwd={sidebarCwd}
+              onCreated={onWorktreePicked}
+              onCancel={() => setWorktreeDialog(undefined)}
+            />
+          ) : worktreeDialog === "open" ? (
+            <OpenWorktreeDialog
+              cwd={sidebarCwd}
+              onOpen={onWorktreePicked}
+              onCancel={() => setWorktreeDialog(undefined)}
+            />
+          ) : null}
           <HarnessUpdateNotice
             topOffset={12}
             onHeightChange={setHarnessUpdateHeight}

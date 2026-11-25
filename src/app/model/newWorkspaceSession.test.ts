@@ -44,3 +44,12 @@ it("starts in the project root without session defaults or a separate worktree",
   expect(session.runtimeMode).toBe("supervised");
   expect(session.worktreeCwd).toBeUndefined();
 });
+
+it("starts with the requested provider instead of the project default", () => {
+  setProjectDefaultProvider("/current", "codex", "codex:gpt-5.4");
+
+  const session = newWorkspaceSession("/current", undefined, "pi");
+
+  expect(session.harness).toBe("pi");
+  expect(session.cwd).toBe("/current");
+});

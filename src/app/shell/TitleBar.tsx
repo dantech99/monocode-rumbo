@@ -7,7 +7,6 @@ import {
   Inbox,
   PanelLeft,
   GitBranch,
-  Plus,
   Search,
   Settings,
   StickyNote,
@@ -36,6 +35,8 @@ import {
 } from "../../shared/hooks/useAnimatedReorder";
 import { useTabCloseMotion } from "../../features/workspace/hooks/useTabCloseMotion";
 import { TabWidthMotion } from "./ClosingTab";
+import { NewTabButton } from "./NewTabButton";
+import type { NewTabAction } from "../model/newTabMenu";
 import { FileTypeIcon } from "../../features/files/ui/FileTypeIcon";
 import { HarnessIcon } from "../../features/sessions/ui/HarnessIcon";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -135,8 +136,10 @@ type Props = {
   onToggleSessionSidebar?: () => void;
   onSelect: (id: string) => void;
   onNewTerminal?: () => void;
-  /** Inset layout: a new session, from the end of the tabs. */
-  onNewSession?: () => void;
+  /** Inset layout: the "+" menu (terminal, agents, space, worktrees). */
+  onNewTabAction?: (action: NewTabAction) => void;
+  /** Worktree entries of the "+" menu need a git project. */
+  newTabWorktrees?: boolean;
   onOpenSettings?: () => void;
   onOpenInbox?: () => void;
   onOpenNotes?: () => void;
@@ -692,7 +695,8 @@ function TitleBarComponent({
   onToggleSessionSidebar,
   onSelect,
   onNewTerminal,
-  onNewSession,
+  onNewTabAction,
+  newTabWorktrees = false,
   onOpenSettings,
   onOpenInbox,
   onOpenNotes,
@@ -1235,18 +1239,11 @@ function TitleBarComponent({
                   </div>
                 );
               })}
-              {onNewSession ? (
-                // Sized and plated like an inactive tab beside it.
-                <button
-                  type="button"
-                  title={`New session (${MOD}T)`}
-                  aria-label={`New session (${MOD}T)`}
-                  data-tauri-drag-region="false"
-                  onClick={onNewSession}
-                  className="ml-0.5 grid size-7.5 shrink-0 cursor-default place-items-center rounded-md bg-content/4 text-content/50 opacity-65 hover:bg-content/7 hover:text-content hover:opacity-100 focus-visible:opacity-100"
-                >
-                  <Plus className="size-3.5" strokeWidth={1.75} />
-                </button>
+              {onNewTabAction ? (
+                <NewTabButton
+                  worktrees={newTabWorktrees}
+                  onAction={onNewTabAction}
+                />
               ) : null}
             </div>
           </div>
