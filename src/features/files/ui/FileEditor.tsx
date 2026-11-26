@@ -113,6 +113,17 @@ type Props = {
   onDirtyChange: (path: string, dirty: boolean) => void;
   onErrorCountChange?: (path: string, count: number) => void;
   onOpenFile?: (path: string) => void;
+  /** Reuses a CodeMirror state captured before this file's editor last unmounted. */
+  restore?: CodeMirrorRestoreState;
+  /** Called right before the CodeMirror view unmounts, so a caller can cache it. */
+  onStateCapture?: (snapshot: CodeMirrorRestoreState) => void;
+};
+
+/** A CodeMirror editor's live state, captured so it can survive an unmount. */
+export type CodeMirrorRestoreState = {
+  state: EditorState;
+  savedDoc: Text | null;
+  dirty: boolean;
 };
 
 type LoadState =
@@ -133,6 +144,8 @@ export function FileEditor({
   onDirtyChange,
   onErrorCountChange,
   onOpenFile,
+  restore,
+  onStateCapture,
 }: Props) {
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [saveState, setSaveState] = useState<SaveState>({ status: "idle" });
@@ -505,6 +518,8 @@ export function FileEditor({
                     : undefined
                 }
                 onDocChange={setDraft}
+                restore={restore}
+                onStateCapture={onStateCapture}
               />
             </div>
           }
@@ -526,6 +541,8 @@ export function FileEditor({
           onStageGit={
             showDiff && gitDiff?.kind === "unstaged" ? stageGit : undefined
           }
+          restore={restore}
+          onStateCapture={onStateCapture}
         />
       )}
       <footer className="flex h-6 shrink-0 items-center border-t border-stroke px-2.5 font-mono text-[10.5px] text-content/40">
@@ -564,6 +581,8 @@ export function CodeMirrorEditor({
   onStageGit,
   onDocChange,
   formatOnSave = true,
+  restore,
+  onStateCapture,
 }: {
   path: string;
   commentPath: string;
@@ -579,6 +598,8 @@ export function CodeMirrorEditor({
   onStageGit?: (contents: string) => Promise<void>;
   onDocChange?: (content: string) => void;
   formatOnSave?: boolean;
+  restore?: CodeMirrorRestoreState;
+  onStateCapture?: (snapshot: CodeMirrorRestoreState) => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -597,6 +618,8 @@ export function CodeMirrorEditor({
   const pendingNavigationRef = useRef<EditorNavigationRequest | null>(null);
   const gitOriginalRef = useRef(gitOriginal);
   const chunkNavPinnedRef = useRef<number | null>(null);
+  const restoreRef = useRef(restore);
+  const onStateCaptureRef = useRef(onStateCapture);
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
   const colorScheme = useColorScheme();
   const [chunkNav, setChunkNav] = useState<{
@@ -624,6 +647,8 @@ export function CodeMirrorEditor({
   onDocChangeRef.current = onDocChange;
   valueRef.current = value;
   gitOriginalRef.current = gitOriginal;
+  restoreRef.current = restore;
+  onStateCaptureRef.current = onStateCapture;
 
   const syncChunkNav = useCallback((view: EditorView, fromScroll = true) => {
     const positions = diffNavigablePositions(view);
@@ -698,7 +723,6 @@ export function CodeMirrorEditor({
     const host = hostRef.current;
     if (!host) return;
 
-    const language = new Compartment();
     let disposed = false;
     let saveGeneration = 0;
     let autosaveTimer = 0;
@@ -776,89 +800,108 @@ export function CodeMirrorEditor({
       }, FILE_EDITOR_AUTOSAVE_DELAY_MS);
     }
 
-    view = new EditorView({
-      doc: valueRef.current,
-      parent: host,
-      extensions: [
-        minimalSetup,
-        showDiff ? editorGitConfig.of(editorGit(gitOptions)) : [],
-        // Diff tabs put the fold arrows first so each line number sits right
-        // beside its +/- glyph.
-        showDiff
-          ? [foldGutter(), lineNumbers()]
-          : [lineNumbers(), foldGutter()],
-        highlightActiveLine(),
-        highlightActiveLineGutter(),
-        EditorView.lineWrapping,
-        wrappedLineIndent,
-        language.of([]),
-        editorScheme.of(schemeExtensions(isLightScheme() ? "light" : "dark")),
-        editorMatching,
-        editorTyping(path),
-        editorAutocomplete,
-        editorLint(path, (count) => onErrorCountChangeRef.current(count)),
-        editorScrollbar,
-        editorSearch,
-        Prec.high(
-          keymap.of([
-            ...foldKeymap,
-            { key: "Mod-s", run: () => save(), preventDefault: true },
-            {
-              key: "Tab",
-              run: (view) => {
-                if (
-                  completionStatus(view.state) === "active" &&
-                  acceptCompletion(view)
-                ) {
-                  return true;
-                }
-                return tryExpandEmmet(view) || indentOrInsertTab(view);
+    const restored = restoreRef.current;
+    if (restored) {
+      // A preserved state already carries its own configured language
+      // extension, so there's nothing further to reconfigure here.
+      view = new EditorView({ state: restored.state, parent: host });
+      savedDocumentRef.current = restored.savedDoc;
+      dirtyRef.current = restored.dirty;
+    } else {
+      const language = new Compartment();
+      view = new EditorView({
+        doc: valueRef.current,
+        parent: host,
+        extensions: [
+          minimalSetup,
+          showDiff ? editorGitConfig.of(editorGit(gitOptions)) : [],
+          // Diff tabs put the fold arrows first so each line number sits right
+          // beside its +/- glyph.
+          showDiff
+            ? [foldGutter(), lineNumbers()]
+            : [lineNumbers(), foldGutter()],
+          highlightActiveLine(),
+          highlightActiveLineGutter(),
+          EditorView.lineWrapping,
+          wrappedLineIndent,
+          language.of([]),
+          editorScheme.of(
+            schemeExtensions(isLightScheme() ? "light" : "dark"),
+          ),
+          editorMatching,
+          editorTyping(path),
+          editorAutocomplete,
+          editorLint(path, (count) => onErrorCountChangeRef.current(count)),
+          editorScrollbar,
+          editorSearch,
+          Prec.high(
+            keymap.of([
+              ...foldKeymap,
+              { key: "Mod-s", run: () => save(), preventDefault: true },
+              {
+                key: "Tab",
+                run: (view) => {
+                  if (
+                    completionStatus(view.state) === "active" &&
+                    acceptCompletion(view)
+                  ) {
+                    return true;
+                  }
+                  return tryExpandEmmet(view) || indentOrInsertTab(view);
+                },
+                shift: indentLess,
+                preventDefault: true,
               },
-              shift: indentLess,
-              preventDefault: true,
+            ]),
+          ),
+          EditorView.updateListener.of((update) => {
+            if (
+              update.transactions.some(
+                (tr) =>
+                  (tr.selection || tr.docChanged) &&
+                  !tr.annotation(diskReload) &&
+                  !tr.annotation(sourceNavigation),
+              )
+            ) {
+              pendingNavigationRef.current = null;
+            }
+            if (update.selectionSet) {
+              setSelectionTarget(
+                editorSelectionTarget(update.view, commentPath),
+              );
+            } else if (update.docChanged) {
+              setSelectionTarget(null);
+            }
+            if (!update.docChanged) return;
+            onDocChangeRef.current?.(update.state.doc.toString());
+            if (update.transactions.some((tr) => tr.annotation(diskReload))) {
+              return;
+            }
+            markDirty();
+            scheduleAutosave();
+          }),
+          EditorView.domEventHandlers({
+            blur: () => {
+              pendingNavigationRef.current = null;
             },
-          ]),
-        ),
-        EditorView.updateListener.of((update) => {
-          if (
-            update.transactions.some(
-              (tr) =>
-                (tr.selection || tr.docChanged) &&
-                !tr.annotation(diskReload) &&
-                !tr.annotation(sourceNavigation),
-            )
-          ) {
-            pendingNavigationRef.current = null;
-          }
-          if (update.selectionSet) {
-            setSelectionTarget(editorSelectionTarget(update.view, commentPath));
-          } else if (update.docChanged) {
-            setSelectionTarget(null);
-          }
-          if (!update.docChanged) return;
-          onDocChangeRef.current?.(update.state.doc.toString());
-          if (update.transactions.some((tr) => tr.annotation(diskReload))) {
-            return;
-          }
-          markDirty();
-          scheduleAutosave();
-        }),
-        EditorView.domEventHandlers({
-          blur: () => {
-            pendingNavigationRef.current = null;
-          },
-        }),
-        showDiff
-          ? EditorView.updateListener.of((update) => {
-              if (!diffNavUpdateRelevant(update)) return;
-              chunkNavPinnedRef.current = null;
-              syncChunkNav(update.view);
-            })
-          : [],
-      ],
-    });
-    savedDocumentRef.current = view.state.doc;
-    dirtyRef.current = false;
+          }),
+          showDiff
+            ? EditorView.updateListener.of((update) => {
+                if (!diffNavUpdateRelevant(update)) return;
+                chunkNavPinnedRef.current = null;
+                syncChunkNav(update.view);
+              })
+            : [],
+        ],
+      });
+      savedDocumentRef.current = view.state.doc;
+      dirtyRef.current = false;
+      void languageForPath(path).then((extension) => {
+        if (!disposed && extension) {
+          view.dispatch({ effects: language.reconfigure(extension) });
+        }
+      });
+    }
     viewRef.current = view;
     lockOverscroll(view.scrollDOM as HTMLDivElement);
     if (showDiff) {
@@ -876,17 +919,16 @@ export function CodeMirrorEditor({
     }
     if (activeRef.current) view.focus();
 
-    void languageForPath(path).then((extension) => {
-      if (!disposed && extension) {
-        view.dispatch({ effects: language.reconfigure(extension) });
-      }
-    });
-
     return () => {
       disposed = true;
       window.clearTimeout(autosaveTimer);
       onErrorCountChangeRef.current(0);
       lockOverscroll(null);
+      onStateCaptureRef.current?.({
+        state: view.state,
+        savedDoc: savedDocumentRef.current,
+        dirty: dirtyRef.current,
+      });
       viewRef.current = null;
       savedDocumentRef.current = null;
       setChunkNav(null);

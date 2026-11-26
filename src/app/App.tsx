@@ -5,6 +5,7 @@ import { HarnessEventQueue } from "./model/harnessFlush";
 import { noteStreamApplied } from "../features/sessions/model/streamingPerformance";
 import { updateSessionState } from "./model/sessionState";
 import { beginTabSwitch, commitTabSwitch } from "./model/navigationPerformance";
+import { useMountLru } from "../shared/lib/mountLru";
 import {
   SessionStateContext,
   useWorkspaceSessionState,
@@ -959,6 +960,9 @@ function currentWorkspace(project: string): string {
   return worktreeFocus(project)?.path ?? project;
 }
 
+/** Workspace tabs beyond this many most-recently-active stay unmounted. */
+const WORKSPACE_TAB_MOUNT_LIMIT = 3;
+
 export default function App(props: AppProps) {
   return (
     <Suspense fallback={null}>
@@ -1674,6 +1678,11 @@ function Workspace({
     tabs.find((t) => t.id === activeTabId) ??
     filterTabsForProject(tabs, sessions, projectCwd)[0] ??
     tabs[0];
+  const mountedTabIds = useMountLru(
+    tabs.map((t) => t.id),
+    activeTab?.id,
+    WORKSPACE_TAB_MOUNT_LIMIT,
+  );
   const active =
     sessions.find((session) => session.id === activeTab?.focusedId) ??
     sessions.find(
@@ -11835,7 +11844,9 @@ function Workspace({
                               style={{ gridArea: "main" }}
                             >
                               <div className="relative min-h-0 min-w-0 flex-1">
-                                {tabs.map((tab) => (
+                                {tabs
+                                  .filter((tab) => mountedTabIds.has(tab.id))
+                                  .map((tab) => (
                                   <div
                                     key={tab.id}
                                     data-workspace-tab={tab.id}
