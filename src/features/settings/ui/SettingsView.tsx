@@ -62,15 +62,8 @@ import {
   applyChatBackgroundScope,
   applyDiffPalette,
   applyAccentColor,
-  applyBodyGlass,
-  applySidebarBlur,
-  applySidebarOpacity,
-  applyThemeDarkLightness,
   applyThemePreference,
-  applyThemeTint,
   applyWorkspaceTheme,
-  BODY_GLASS_DEFAULT,
-  INSET_LAYOUT_DEFAULT,
   INSET_GLASS_DEFAULT,
   ACCENT_COLOR_DEFAULT,
   CHAT_BACKGROUND_EMPTY_OPACITY_DEFAULT,
@@ -80,8 +73,6 @@ import {
   CHAT_BACKGROUND_SCOPE_DEFAULT,
   THEME_PREFERENCE_DEFAULT,
   chatBackgroundSrc,
-  loadBodyGlass,
-  loadInsetLayout,
   loadInsetGlass,
   loadAccentColor,
   loadChatBackgroundEmptyOpacity,
@@ -90,19 +81,11 @@ import {
   loadChatBackgroundScope,
   loadDiffPalette,
   loadNewThreadBackgroundEffect,
-  loadThemeDarkLightness,
   loadThemePreference,
-  loadSidebarBlur,
-  loadSidebarOpacity,
-  loadThemeHue,
-  loadThemeSaturation,
   loadWorkspaceTheme,
   loadTranscriptLayout,
   loadTranscriptAnchor,
-  saveBodyGlass,
-  saveInsetLayout,
   saveInsetGlass,
-  subscribeInsetLayout,
   saveAccentColor,
   saveChatBackgroundEmptyOpacity,
   saveChatBackgroundPath,
@@ -110,12 +93,7 @@ import {
   saveChatBackgroundScope,
   saveDiffPalette,
   setNewThreadBackgroundEffect,
-  saveThemeDarkLightness,
   saveThemePreference,
-  saveSidebarBlur,
-  saveSidebarOpacity,
-  saveThemeHue,
-  saveThemeSaturation,
   saveWorkspaceTheme,
   isLightScheme,
   saveTranscriptLayout,
@@ -125,21 +103,6 @@ import {
   loadShowExcludedFiles,
   saveShowExcludedFiles,
   SHOW_EXCLUDED_FILES_DEFAULT,
-  SIDEBAR_BLUR_DEFAULT,
-  SIDEBAR_BLUR_MAX,
-  SIDEBAR_BLUR_MIN,
-  SIDEBAR_OPACITY_DEFAULT,
-  SIDEBAR_OPACITY_MAX,
-  SIDEBAR_OPACITY_MIN,
-  THEME_DARK_LIGHTNESS_DEFAULT,
-  THEME_DARK_LIGHTNESS_MAX,
-  THEME_DARK_LIGHTNESS_MIN,
-  THEME_HUE_DEFAULT,
-  THEME_HUE_MAX,
-  THEME_HUE_MIN,
-  THEME_SATURATION_DEFAULT,
-  THEME_SATURATION_MAX,
-  THEME_SATURATION_MIN,
   type ThemePreference,
   type ChatBackgroundScope,
   DIFF_PALETTE_DEFAULT,
@@ -258,7 +221,6 @@ import {
   savePacedReveal,
   usePacedReveal,
   saveMaskEmails,
-  saveNewLayoutPromptDismissed,
   saveShowRemainingUsage,
   useComposerAutocorrect,
   useMaskEmails,
@@ -350,8 +312,6 @@ import {
   type KeybindingOverride,
   saveTabAnimationsEnabled,
   searchSettings,
-  CLASSIC_LAYOUT_HIDDEN_SETTINGS,
-  INSET_LAYOUT_HIDDEN_SETTINGS,
   settingsSectionDescription,
   settingsSectionLabel,
   COLLAPSED_PROJECT_RAIL_MODE_DEFAULT,
@@ -671,22 +631,7 @@ function SettingsSearch({
   const root = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const listId = useId();
-  const insetLayout = useSyncExternalStore(
-    subscribeInsetLayout,
-    loadInsetLayout,
-    () => INSET_LAYOUT_DEFAULT,
-  );
-  const results = useMemo(
-    () =>
-      searchSettings(
-        query,
-        undefined,
-        insetLayout
-          ? INSET_LAYOUT_HIDDEN_SETTINGS
-          : CLASSIC_LAYOUT_HIDDEN_SETTINGS,
-      ),
-    [query, insetLayout],
-  );
+  const results = useMemo(() => searchSettings(query), [query]);
   const open = query.trim().length > 0;
 
   useEffect(() => setActive(0), [query]);
@@ -1611,20 +1556,7 @@ function useAppearanceSettings(
   const [accentColor, setAccentColor] = useState(loadAccentColor);
   const [workspaceTheme, setWorkspaceTheme] =
     useState<WorkspaceThemeId>(loadWorkspaceTheme);
-  const [opacity, setOpacity] = useState(loadSidebarOpacity);
-  const [blur, setBlur] = useState(loadSidebarBlur);
-  const [themeHue, setThemeHue] = useState(loadThemeHue);
-  const [themeSaturation, setThemeSaturation] = useState(loadThemeSaturation);
-  const [themeDarkLightness, setThemeDarkLightness] = useState(
-    loadThemeDarkLightness,
-  );
-  const [bodyGlass, setBodyGlass] = useState(loadBodyGlass);
   const [insetGlass, setInsetGlass] = useState(loadInsetGlass);
-  const insetLayout = useSyncExternalStore(
-    subscribeInsetLayout,
-    loadInsetLayout,
-    () => INSET_LAYOUT_DEFAULT,
-  );
   const [showExcludedFiles, setShowExcludedFiles] = useState(
     loadShowExcludedFiles,
   );
@@ -1669,44 +1601,6 @@ function useAppearanceSettings(
     const next = applyWorkspaceTheme(value);
     saveWorkspaceTheme(next);
     setWorkspaceTheme(next);
-  }, []);
-
-  const onOpacity = useCallback((percent: number) => {
-    const next = applySidebarOpacity(percent / 100);
-    saveSidebarOpacity(next);
-    setOpacity(next);
-  }, []);
-
-  const onBlur = useCallback((radius: number) => {
-    const next = applySidebarBlur(radius);
-    saveSidebarBlur(next);
-    setBlur(next);
-  }, []);
-
-  const onTint = useCallback((hue: number, saturation: number) => {
-    const next = applyThemeTint(hue, saturation);
-    saveThemeHue(next.hue);
-    saveThemeSaturation(next.saturation);
-    setThemeHue(next.hue);
-    setThemeSaturation(next.saturation);
-  }, []);
-
-  const onDarkLightness = useCallback((value: number) => {
-    const next = applyThemeDarkLightness(value);
-    saveThemeDarkLightness(next);
-    setThemeDarkLightness(next);
-  }, []);
-
-  const onBodyGlass = useCallback((next: boolean) => {
-    applyBodyGlass(next);
-    saveBodyGlass(next);
-    setBodyGlass(next);
-    if (IS_LINUX) syncNativeGlass(isLightScheme() ? "light" : "dark");
-  }, []);
-
-  const onInsetLayout = useCallback((next: boolean) => {
-    saveNewLayoutPromptDismissed(true);
-    saveInsetLayout(next);
   }, []);
 
   const onInsetGlass = useCallback((next: boolean) => {
@@ -1806,12 +1700,6 @@ function useAppearanceSettings(
     onThemePreference(THEME_PREFERENCE_DEFAULT);
     onAccentColor(ACCENT_COLOR_DEFAULT);
     onWorkspaceTheme(WORKSPACE_THEME_DEFAULT);
-    onOpacity(Math.round(SIDEBAR_OPACITY_DEFAULT * 100));
-    onBlur(SIDEBAR_BLUR_DEFAULT);
-    onTint(THEME_HUE_DEFAULT, THEME_SATURATION_DEFAULT);
-    onDarkLightness(THEME_DARK_LIGHTNESS_DEFAULT);
-    onBodyGlass(BODY_GLASS_DEFAULT);
-    onInsetLayout(INSET_LAYOUT_DEFAULT);
     onInsetGlass(INSET_GLASS_DEFAULT);
     onShowExcludedFiles(SHOW_EXCLUDED_FILES_DEFAULT);
     onChatBackgroundEmptyOpacity(
@@ -1828,9 +1716,6 @@ function useAppearanceSettings(
     onCollapsedProjectRailMode(COLLAPSED_PROJECT_RAIL_MODE_DEFAULT);
   }, [
     chatBackgroundPath,
-    onBlur,
-    onBodyGlass,
-    onInsetLayout,
     onInsetGlass,
     onChatBackgroundEmptyOpacity,
     onChatBackgroundSessionOpacity,
@@ -1842,9 +1727,6 @@ function useAppearanceSettings(
     onWorkspaceTheme,
     onShowExcludedFiles,
     onThemePreference,
-    onOpacity,
-    onTint,
-    onDarkLightness,
     onUiScale,
     onCollapsedProjectRailMode,
   ]);
@@ -1853,14 +1735,7 @@ function useAppearanceSettings(
     themePreference,
     accentColor,
     workspaceTheme,
-    opacity,
-    blur,
-    themeHue,
-    themeSaturation,
-    themeDarkLightness,
-    bodyGlass,
     insetGlass,
-    insetLayout,
     showExcludedFiles,
     chatBackgroundPath,
     chatBackgroundEmptyOpacity,
@@ -1875,12 +1750,6 @@ function useAppearanceSettings(
     onThemePreference,
     onAccentColor,
     onWorkspaceTheme,
-    onOpacity,
-    onBlur,
-    onTint,
-    onDarkLightness,
-    onBodyGlass,
-    onInsetLayout,
     onInsetGlass,
     onShowExcludedFiles,
     onChooseChatBackground,
@@ -1897,22 +1766,13 @@ function useAppearanceSettings(
 }
 
 function AppearancePage({ appearance }: { appearance: AppearanceSettings }) {
-  const percent = Math.round(appearance.opacity * 100);
   const glassDisabled = useColorScheme() === "light";
-  // The inset workspace takes its colours from the workspace theme and has a
-  // fixed tint and blur, so the tint and translucency groups only belong to
-  // the classic layout. Its one glass switch lives with the theme instead.
-  const inset = appearance.insetLayout;
 
   return (
     <>
       <Group
         title="Theme"
-        description={
-          inset
-            ? "Each workspace theme has its own dark and light palette."
-            : "Dark and light share the same tint, so the color settings below apply to both."
-        }
+        description="Each workspace theme has its own dark and light palette."
       >
         <Row
           id="theme"
@@ -1930,53 +1790,49 @@ function AppearancePage({ appearance }: { appearance: AppearanceSettings }) {
             onChange={appearance.onThemePreference}
           />
         </Row>
-        {inset ? (
-          <Row
-            id="workspace-theme"
-            label="Workspace theme"
-            description="Colors for the inset workspace's shell, card, text and accent. Each theme has a dark and a light palette."
-          >
-            <div className="w-48">
-              <Select
-                label="Workspace theme"
-                value={appearance.workspaceTheme}
-                options={WORKSPACE_THEMES.map((theme) => ({
-                  value: theme.id,
-                  label: theme.label,
-                  icon: (
-                    <WorkspaceThemeSwatch
-                      palette={glassDisabled ? theme.light : theme.dark}
-                    />
-                  ),
-                }))}
-                onChange={(value) => {
-                  if (isWorkspaceThemeId(value))
-                    appearance.onWorkspaceTheme(value);
-                }}
-              />
-            </div>
-          </Row>
-        ) : null}
-        {inset ? (
-          <Row
-            id="inset-glass"
-            label="Transparent window"
-            description={
-              IS_LINUX
-                ? "The window stays opaque on Linux."
-                : glassDisabled
-                  ? "Light mode keeps the window opaque. Your dark-mode choice is remembered."
-                  : "Show the desktop through the window. Turn off to keep the window opaque."
-            }
-          >
-            <Toggle
-              label="Transparent window"
-              on={appearance.insetGlass}
-              onChange={appearance.onInsetGlass}
-              disabled={glassDisabled || IS_LINUX}
+        <Row
+          id="workspace-theme"
+          label="Workspace theme"
+          description="Colors for the inset workspace's shell, card, text and accent. Each theme has a dark and a light palette."
+        >
+          <div className="w-48">
+            <Select
+              label="Workspace theme"
+              value={appearance.workspaceTheme}
+              options={WORKSPACE_THEMES.map((theme) => ({
+                value: theme.id,
+                label: theme.label,
+                icon: (
+                  <WorkspaceThemeSwatch
+                    palette={glassDisabled ? theme.light : theme.dark}
+                  />
+                ),
+              }))}
+              onChange={(value) => {
+                if (isWorkspaceThemeId(value))
+                  appearance.onWorkspaceTheme(value);
+              }}
             />
-          </Row>
-        ) : null}
+          </div>
+        </Row>
+        <Row
+          id="inset-glass"
+          label="Transparent window"
+          description={
+            IS_LINUX
+              ? "The window stays opaque on Linux."
+              : glassDisabled
+                ? "Light mode keeps the window opaque. Your dark-mode choice is remembered."
+                : "Show the desktop through the window. Turn off to keep the window opaque."
+          }
+        >
+          <Toggle
+            label="Transparent window"
+            on={appearance.insetGlass}
+            onChange={appearance.onInsetGlass}
+            disabled={glassDisabled || IS_LINUX}
+          />
+        </Row>
         <Row
           id="accent-color"
           label="Accent color"
@@ -2005,137 +1861,9 @@ function AppearancePage({ appearance }: { appearance: AppearanceSettings }) {
         </Row>
       </Group>
 
-      {inset ? null : (
-        <>
-          <Group
-            title="Color"
-            description="Hue and saturation tint every surface. Lightness only moves the dark theme."
-          >
-            <Row
-              id="hue"
-              label="Hue"
-              description="Base hue for accents and tinted surfaces."
-            >
-              <Slider
-                label="Hue"
-                value={appearance.themeHue}
-                display={`${appearance.themeHue}°`}
-                min={THEME_HUE_MIN}
-                max={THEME_HUE_MAX}
-                onChange={(value) =>
-                  appearance.onTint(value, appearance.themeSaturation)
-                }
-              />
-            </Row>
-            <Row
-              id="saturation"
-              label="Saturation"
-              description="How strongly the hue tints the interface. Zero keeps it neutral."
-            >
-              <Slider
-                label="Saturation"
-                value={appearance.themeSaturation}
-                display={`${appearance.themeSaturation}%`}
-                min={THEME_SATURATION_MIN}
-                max={THEME_SATURATION_MAX}
-                onChange={(value) =>
-                  appearance.onTint(appearance.themeHue, value)
-                }
-              />
-            </Row>
-            <Row
-              id="dark-lightness"
-              label="Dark-mode lightness"
-              description={
-                glassDisabled
-                  ? "This only affects dark mode. Your dark-mode value is preserved."
-                  : "Base brightness of the dark theme. Lower values are darker; zero is true black."
-              }
-            >
-              <Slider
-                label="Dark-mode lightness"
-                value={appearance.themeDarkLightness}
-                display={`${appearance.themeDarkLightness}%`}
-                min={THEME_DARK_LIGHTNESS_MIN}
-                max={THEME_DARK_LIGHTNESS_MAX}
-                onChange={appearance.onDarkLightness}
-                disabled={glassDisabled}
-              />
-            </Row>
-          </Group>
-
-          <Group
-            title="Translucency"
-            description={
-              glassDisabled
-                ? "Light mode always uses an opaque window, so these are off. Your dark-mode values are preserved."
-                : "How much of the desktop shows through MonoCode. Blur costs more to composite the higher it goes."
-            }
-          >
-            <Row
-              id="sidebar-opacity"
-              label="Sidebar opacity"
-              description="Applies to the project rail and the other glass panes."
-            >
-              <Slider
-                label="Sidebar opacity"
-                value={percent}
-                display={`${percent}%`}
-                min={Math.round(SIDEBAR_OPACITY_MIN * 100)}
-                max={Math.round(SIDEBAR_OPACITY_MAX * 100)}
-                onChange={appearance.onOpacity}
-                disabled={glassDisabled}
-              />
-            </Row>
-            <Row
-              id="blur"
-              label="Blur radius"
-              description="Background blur behind the window."
-            >
-              <Slider
-                label="Blur radius"
-                value={appearance.blur}
-                display={String(appearance.blur)}
-                min={SIDEBAR_BLUR_MIN}
-                max={SIDEBAR_BLUR_MAX}
-                onChange={appearance.onBlur}
-                disabled={glassDisabled}
-              />
-            </Row>
-            <Row
-              id="main-pane-glass"
-              label="Main pane glass"
-              description="Extend the translucent treatment to the main pane behind sessions and editors."
-            >
-              <Toggle
-                label="Main pane glass"
-                on={appearance.bodyGlass}
-                onChange={appearance.onBodyGlass}
-                disabled={glassDisabled}
-              />
-            </Row>
-          </Group>
-        </>
-      )}
-
       <ChatBackgroundCard appearance={appearance} />
 
       <Group title="Layout">
-        <Row
-          id="inset-layout"
-          label="Layout"
-          description="Classic keeps everything in one sidebar. Focused adds a project switcher, workspace tabs and a right panel."
-        >
-          <Segmented
-            label="Layout"
-            value={appearance.insetLayout ? "focused" : "classic"}
-            options={[
-              { value: "classic", label: "Classic" },
-              { value: "focused", label: "Focused" },
-            ]}
-            onChange={(value) => appearance.onInsetLayout(value === "focused")}
-          />
-        </Row>
         <Row
           id="collapsed-project-rail"
           label="Collapsed project rail"
