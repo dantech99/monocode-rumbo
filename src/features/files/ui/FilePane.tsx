@@ -1,6 +1,7 @@
 import { lazySurface } from "../../../shared/ui/lazySurface";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { memo, useSyncExternalStore } from "react";
+import { memo, useEffect, useRef, useSyncExternalStore } from "react";
+import { useMountLru } from "../../../shared/lib/mountLru";
 import {
   MarkdownViewShell,
   useMarkdownMode,
@@ -35,6 +36,7 @@ import { BinaryFileView } from "./BinaryFileView";
 import { ReleaseNotesSurface } from "../../../app/ui/ReleaseNotesSurface";
 import { WorkingTreeDiffSurface as WorkingTreeDiff } from "../../source-control/ui/workingTreeDiffSurface";
 import { isRemoteProjectPath } from "../../projects/model/recents";
+import type { CodeMirrorRestoreState } from "./FileEditor";
 
 const CommitDiff = lazySurface(async () => {
   const module = await import("../../source-control/ui/CommitDiff");
@@ -52,6 +54,9 @@ const TerminalView = lazySurface(async () => {
   const module = await import("../../terminal/ui/TerminalView");
   return { default: module.TerminalView };
 });
+
+/** File tabs beyond this many most-recently-active stay unmounted. */
+const FILE_PANE_MOUNT_LIMIT = 5;
 
 type Props = {
   pane: EditorPane;
@@ -114,6 +119,18 @@ function FilePaneComponent({
     loadDiffViewer,
     loadDiffViewer,
   );
+  const mountedFileIds = useMountLru(
+    pane.files.map((file) => file.id),
+    pane.activeFileId,
+    FILE_PANE_MOUNT_LIMIT,
+  );
+  const editorStateCacheRef = useRef(new Map<string, CodeMirrorRestoreState>());
+  useEffect(() => {
+    const openIds = new Set(pane.files.map((file) => file.id));
+    for (const id of editorStateCacheRef.current.keys()) {
+      if (!openIds.has(id)) editorStateCacheRef.current.delete(id);
+    }
+  }, [pane.files]);
   return (
     <div
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col"
@@ -134,7 +151,11 @@ function FilePaneComponent({
         />
       ) : null}
       <div data-pane-body="" className="relative min-h-0 flex-1">
-        {(deferBody ? [] : pane.files).map((file) => {
+        {(deferBody ? [] : pane.files)
+          .filter(
+            (file) => isTerminalTab(file) || mountedFileIds.has(file.id),
+          )
+          .map((file) => {
           // Keep review state alive just like an editor; visibility suspends
           // its rendering and background work until the tab is active again.
           const active = visible && file.id === pane.activeFileId;
@@ -225,6 +246,10 @@ function FilePaneComponent({
                     onErrorCountChange(file.id, count)
                   }
                   onOpenFile={onOpenFile}
+                  restore={editorStateCacheRef.current.get(file.id)}
+                  onStateCapture={(snapshot) =>
+                    editorStateCacheRef.current.set(file.id, snapshot)
+                  }
                 />
               )}
             </div>
