@@ -695,11 +695,6 @@ function SidebarComponent({
   }
   const unseenFinishedIds =
     unseenFinishedIdsProp ?? unseenFinishedLocalRef.current;
-  // Revisits render straight from cache, so this is only ever true the first
-  // time a project is opened.
-  const pendingFirstLoad = remoteProject
-    ? !!remote.machine && !remote.loaded && projectSessions.length === 0
-    : pending && sessions.length === 0;
   const worktreeFocus = useWorktreeFocus(cwd);
   const focusedWorktree = remoteProject ? undefined : worktreeFocus;
   const listableSessions = mergeFolderSessionSummaries(
@@ -1899,18 +1894,10 @@ function SidebarComponent({
       inset ? projectRailItems(recents, cwd).map((item) => item.path) : [],
     [inset, recents, cwd],
   );
-  const swipeDestination = useRef<{ from: string; to: string } | null>(null);
-  const onSwipeProject = useCallback(
-    (path: string) => {
-      swipeDestination.current = { from: cwd, to: path };
-      onSelectProject?.(path);
-    },
-    [cwd, onSelectProject],
-  );
   const projectSwipeRef = useProjectSwipe(inset, {
     cwd,
     projects: spaceProjects,
-    onSelectProject: onSelectProject ? onSwipeProject : undefined,
+    onSelectProject,
   });
   const setSidebarRef = useCallback(
     (el: HTMLElement | null) => {
@@ -1930,179 +1917,9 @@ function SidebarComponent({
     );
     if (unplaced) saveProjectRailOrder(spaceProjects);
   }, [inset, spaceProjects]);
-  const slideRefs = useRef<(HTMLElement | null)[]>([]);
-  const previousSpace = useRef(cwd);
-  // The outgoing project's header and list, copied while they are still on
-  // screen, so they can be pushed away as the new ones arrive.
-  const outgoingSpace = useRef<{
-    to: string;
-    nodes: { node: HTMLElement; scrollTop: number }[];
-  } | null>(null);
-  if (
-    inset &&
-    !sameProjectPath(previousSpace.current, cwd) &&
-    outgoingSpace.current?.to !== cwd
-  ) {
-    outgoingSpace.current = {
-      to: cwd,
-      nodes: slideRefs.current.flatMap((el) => {
-        if (!el?.isConnected) return [];
-        const node = el.cloneNode(true) as HTMLElement;
-        // A slide still holding the live copy hidden must not hide this one.
-        node.style.opacity = "";
-        return [{ node, scrollTop: el.scrollTop }];
-      }),
-    };
-  }
-  const spaceProjectsRef = useRef(spaceProjects);
-  spaceProjectsRef.current = spaceProjects;
-  const spaceSlide = useRef<{
-    direction: number;
-    swipe: boolean;
-    overlay: HTMLDivElement | null;
-    started: boolean;
-    timer?: number;
-    animations: Animation[];
-  } | null>(null);
-  const endSpaceSlide = useCallback(() => {
-    const slide = spaceSlide.current;
-    if (!slide) return;
-    spaceSlide.current = null;
-    window.clearTimeout(slide.timer);
-    for (const animation of slide.animations) animation.cancel();
-    slide.overlay?.remove();
-    for (const el of slideRefs.current) if (el) el.style.opacity = "";
-  }, []);
-  // The push itself: both projects move the sidebar's full width together,
-  // the old one fading out as the new one fades in.
-  const startSpaceSlide = useCallback(() => {
-    const slide = spaceSlide.current;
-    if (!slide || slide.started) return;
-    slide.started = true;
-    window.clearTimeout(slide.timer);
-    const aside = slideRefs.current[0]?.closest("aside");
-    const distance = aside?.clientWidth ?? 240;
-    const timing = slide.swipe
-      ? { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" }
-      : { duration: 440, easing: "cubic-bezier(0.4, 0, 0.2, 1)" };
-    for (const el of slideRefs.current) {
-      if (!el || typeof el.animate !== "function") continue;
-      el.style.opacity = "";
-      slide.animations.push(
-        el.animate(
-          [
-            {
-              transform: `translateX(${slide.direction * distance}px)`,
-              opacity: 0,
-            },
-            { transform: "none", opacity: 1 },
-          ],
-          timing,
-        ),
-      );
-    }
-    for (const node of slide.overlay?.children ?? []) {
-      slide.animations.push(
-        (node as HTMLElement).animate(
-          [
-            { transform: "none", opacity: 1 },
-            {
-              transform: `translateX(${-slide.direction * distance}px)`,
-              opacity: 0,
-            },
-          ],
-          { ...timing, fill: "forwards" },
-        ),
-      );
-    }
-    void Promise.all(slide.animations.map((animation) => animation.finished))
-      .then(() => {
-        if (spaceSlide.current === slide) endSpaceSlide();
-      })
-      .catch(() => undefined);
-  }, [endSpaceSlide]);
-  // Switching projects slides the sidebar the way the spaces run, like Zen's
-  // workspaces: moving right, the old project leaves to the left as the new
-  // one comes in from the right, and the reverse moving left.
-  useLayoutEffect(() => {
-    const from = previousSpace.current;
-    previousSpace.current = cwd;
-    const outgoing = outgoingSpace.current;
-    outgoingSpace.current = null;
-    if (sameProjectPath(from, cwd)) return;
-    const destination = swipeDestination.current;
-    swipeDestination.current = null;
-    const swipe =
-      !!destination &&
-      sameProjectPath(destination.from, from) &&
-      sameProjectPath(destination.to, cwd);
-    const step = projectStep;
-    projectStep = null;
-    if (!inset) return;
-    endSpaceSlide();
-    const spaces = spaceProjectsRef.current;
-    const fromIndex = spaces.findIndex((path) => sameProjectPath(path, from));
-    const toIndex = spaces.findIndex((path) => sameProjectPath(path, cwd));
-    if (fromIndex < 0 || toIndex < 0) return;
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    if (slideRefs.current.some((el) => el && typeof el.animate !== "function"))
-      return;
-    // The copies sit on an overlay over the sidebar, each where its live
-    // counterpart now is, covering it until the push starts.
-    const aside = slideRefs.current[0]?.closest("aside");
-    let overlay: HTMLDivElement | null = null;
-    if (aside && outgoing?.nodes.length) {
-      overlay = document.createElement("div");
-      overlay.setAttribute("aria-hidden", "true");
-      overlay.inert = true;
-      overlay.className =
-        "pointer-events-none absolute inset-0 z-20 overflow-hidden";
-      const asideRect = aside.getBoundingClientRect();
-      outgoing.nodes.forEach(({ node, scrollTop }, index) => {
-        const live = slideRefs.current[index];
-        if (!live) return;
-        const rect = live.getBoundingClientRect();
-        Object.assign(node.style, {
-          position: "absolute",
-          left: `${rect.left - asideRect.left}px`,
-          top: `${rect.top - asideRect.top}px`,
-          width: `${rect.width}px`,
-          height: `${rect.height}px`,
-        });
-        overlay!.append(node);
-        node.scrollTop = scrollTop;
-      });
-      aside.append(overlay);
-    }
-    // Clicks and shortcuts can wait for first-load sessions. A swipe starts
-    // immediately so disk/network latency does not hold the gesture still.
-    for (const el of slideRefs.current) if (el) el.style.opacity = "0";
-    spaceSlide.current = {
-      // A step past either end wraps around but keeps moving the same way.
-      direction:
-        step && sameProjectPath(step.to, cwd)
-          ? step.direction
-          : toIndex > fromIndex
-            ? 1
-            : -1,
-      overlay,
-      swipe,
-      started: false,
-      animations: [],
-      timer: swipe ? undefined : window.setTimeout(startSpaceSlide, 400),
-    };
-    if (swipe) startSpaceSlide();
-  }, [cwd, inset, endSpaceSlide, startSpaceSlide]);
-  useLayoutEffect(() => {
-    if (spaceSlide.current && !pendingFirstLoad) startSpaceSlide();
-  }, [cwd, pendingFirstLoad, startSpaceSlide]);
-  useEffect(() => endSpaceSlide, [endSpaceSlide]);
 
   const workspaceHeader = (
     <div
-      ref={(el) => {
-        slideRefs.current[0] = el;
-      }}
       // Inset, it sits just under the title bar, so it keeps less above the
       // project button than below it, and its search icon lines up with the
       // sessions' filter and times.
@@ -2271,7 +2088,7 @@ function SidebarComponent({
       logoPath: logoPath ?? undefined,
     };
   };
-  // Spaces lists every project, whatever the session filter says.
+  // The Projects list shows every project, whatever the session filter says.
   const columnSpaces: ProjectColumnSpace[] = railProjects.map((project) => ({
     cwd: project.path,
     branch: projectBranchLabel(
@@ -2380,7 +2197,6 @@ function SidebarComponent({
           ref={(el) => {
             sessionsLock(el);
             sessionsScrollRef.current = el;
-            slideRefs.current[1] = el;
           }}
           className={
             showSessionList ? "flex min-h-0 flex-1 flex-col" : "shrink-0"
@@ -2608,17 +2424,6 @@ function SidebarComponent({
         : null}
     </div>
   );
-}
-
-/** The project a `Project: Previous` / `Project: Next` step is heading to. */
-let projectStep: { to: string; direction: 1 | -1 } | null = null;
-
-/**
- * Notes which way a project step runs, so a step that wraps past the last
- * project to the first (or back) still slides on in that direction.
- */
-export function noteProjectStep(to: string, delta: number) {
-  projectStep = { to, direction: delta < 0 ? -1 : 1 };
 }
 
 export const Sidebar = memo(SidebarComponent);

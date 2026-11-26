@@ -19,7 +19,7 @@ export type ProjectColumnGroup = ProjectSessionGroup & {
   logoPath?: string;
 };
 
-/** A row of the flat Spaces list; its sessions live in the Agents list. */
+/** A row of the flat Projects list; its sessions live in the Agents list. */
 export type ProjectColumnSpace = Omit<ProjectColumnGroup, "sessions" | "phase"> &
   Partial<Pick<ProjectColumnGroup, "sessions" | "phase">>;
 
@@ -120,7 +120,7 @@ export function ProjectSessionColumn({
       {showList ? (
         <>
       <div className="flex h-7 shrink-0 items-center gap-1 px-3 text-[12px] font-medium text-content/50">
-        <span className="min-w-0 flex-1 truncate">Spaces</span>
+        <span className="min-w-0 flex-1 truncate">Projects</span>
         <button
           type="button"
           aria-label="Open project"
@@ -131,7 +131,7 @@ export function ProjectSessionColumn({
         </button>
       </div>
       <nav
-        aria-label="Spaces"
+        aria-label="Projects"
         className="max-h-[40%] shrink-0 overflow-y-auto px-1"
       >
         {spaces.length === 0 ? (
